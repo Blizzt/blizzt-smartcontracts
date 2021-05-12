@@ -1,4 +1,4 @@
-# Divance
+# Blizzt
 ## Installation setup
 
 Install truffle
