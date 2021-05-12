@@ -4,17 +4,17 @@ pragma solidity ^0.8.3;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "../interfaces/IStaking.sol";
 
-contract DivanceStaking is IStaking {
+contract BlizztStaking is IStaking {
 
-    address immutable private divanceToken;
+    address immutable private blizztToken;
     mapping(address => uint256) private balances;
 
-    constructor(address _divanceToken) {
-        divanceToken = _divanceToken;
+    constructor(address _blizztToken) {
+        blizztToken = _blizztToken;
     }
 
     function stake(uint256 _tokens) external override {
-        IERC20(divanceToken).transferFrom(msg.sender, address(this), _tokens);
+        IERC20(blizztToken).transferFrom(msg.sender, address(this), _tokens);
         balances[msg.sender] += _tokens;
     }
 

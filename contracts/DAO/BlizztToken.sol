@@ -179,7 +179,7 @@ contract BlizztToken is ERC20 {
         internal
     {
         address currentDelegate = _delegates[delegator];
-        uint256 delegatorBalance = balanceOf(delegator); // balance of underlying DIVANCEs (not scaled);
+        uint256 delegatorBalance = balanceOf(delegator); // balance of underlying Blizzt (not scaled);
         _delegates[delegator] = delegatee;
 
         emit DelegateChanged(delegator, currentDelegate, delegatee);

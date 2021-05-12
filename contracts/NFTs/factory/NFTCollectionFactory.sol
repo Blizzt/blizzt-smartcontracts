@@ -12,17 +12,17 @@ contract NFTCollectionFactory is TimelockOwnable {
 
     address public immutable nftCollectionTemplate;
     address public immutable nftMarketplace;
-    address public immutable divanceToken;
+    address public immutable blizztToken;
     address public stakeToken;
     uint256 public minRequiredFree;
     uint256 public minRequiredPremium;
 
     event NFTCollectionCreated(address indexed owner, address indexed tokenAddress);
 
-    constructor (address _nftCollectionTemplate, address _nftMarketplace, address _divanceToken, address _stakeToken, uint256 _minRequiredFree, uint256 _minRequiredPremium) TimelockOwnable(msg.sender) {
+    constructor (address _nftCollectionTemplate, address _nftMarketplace, address _blizztToken, address _stakeToken, uint256 _minRequiredFree, uint256 _minRequiredPremium) TimelockOwnable(msg.sender) {
         nftCollectionTemplate = _nftCollectionTemplate;
         nftMarketplace = _nftMarketplace;
-        divanceToken = _divanceToken;
+        blizztToken = _blizztToken;
         stakeToken = _stakeToken;
         minRequiredFree = _minRequiredFree;
         minRequiredPremium = _minRequiredPremium;
@@ -47,7 +47,7 @@ contract NFTCollectionFactory is TimelockOwnable {
     function createNFTFullCollection(string memory _uri, uint256[] memory _ids, uint256[] memory _amounts, address[] memory _owners) external {
         require(_ids.length == _owners.length, "WrongArrays");
         require(_ids.length == _amounts.length, "WrongArrays");
-        require(IStaking(divanceToken).balanceOf(msg.sender) >= minRequiredPremium, "NoEnoughTokensPremium");
+        require(IStaking(blizztToken).balanceOf(msg.sender) >= minRequiredPremium, "NoEnoughTokensPremium");
 
         address nft = Clones.clone(nftCollectionTemplate);
         INFTCollection(nft).initialize(nftMarketplace, address(this), _uri);
@@ -59,7 +59,7 @@ contract NFTCollectionFactory is TimelockOwnable {
 
     function _createNFTCollection(string memory _uri, address _owner) internal returns(address) {
         // Check if the sender has the minimum token required
-        require(IERC20(divanceToken).balanceOf(msg.sender) >= minRequiredFree, "NoEnoughTokensFree");
+        require(IERC20(blizztToken).balanceOf(msg.sender) >= minRequiredFree, "NoEnoughTokensFree");
 
         address nft = Clones.clone(nftCollectionTemplate);
         INFTCollection(nft).initialize(nftMarketplace, _owner, _uri);

@@ -100,7 +100,7 @@ async function doDeploy(deployer, network, accounts) {
     // Qmb4atcgbbN5v4CDJ8nz5QG5L2pgwSTLd3raDrnyhLjnUH
     // QmaozNR7DZHQK1ZcU9p7QdrshMvXqWK6gpu5rmrkPdT3L4
 
-    let tx = await nftFactory.createNFTRentToken("https://api.divance.com/erc1155/");
+    let tx = await nftFactory.createNFTRentToken("https://api.blizzt.com/erc1155/");
     console.log("Gas consumed create NFT: ", tx.receipt.gasUsed);
     let tokenAddress = tx.logs[0].args.tokenAddress;
     let token = await NFTCollection.at(tokenAddress);

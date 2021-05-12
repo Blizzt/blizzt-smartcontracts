@@ -9,7 +9,7 @@ import "../../utils/TimelockOwnable.sol";
 
 contract MetaTxNFTMarketplace is TimelockOwnable {
 
-    address private divanceToken;
+    address private blizztToken;
     address private nftFactory;
     uint24 private fee;
     uint24 private tokensHalfFee;
@@ -36,13 +36,13 @@ contract MetaTxNFTMarketplace is TimelockOwnable {
 
     /**
      * @notice Constructor
-     * @param _divanceToken     --> 
+     * @param _blizztToken     --> 
      * @param _fee              --> 
      * @param _tokensHalfFee    --> 
      * @param _tokensNoFee      --> 
      */
-    constructor (address _divanceToken, uint16 _fee, uint24 _tokensHalfFee, uint24 _tokensNoFee) TimelockOwnable(msg.sender) {
-        divanceToken = _divanceToken;
+    constructor (address _blizztToken, uint16 _fee, uint24 _tokensHalfFee, uint24 _tokensNoFee) TimelockOwnable(msg.sender) {
+        blizztToken = _blizztToken;
         fee = _fee;
         tokensHalfFee = _tokensHalfFee;
         tokensNoFee = _tokensNoFee;
