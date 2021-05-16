@@ -35,12 +35,12 @@ contract NFTCollection is ERC165, INFTCollection, IERC1155, IERC1155MetadataURI 
     string private _uri;
 
     address private nftMarketplace;
-    address private _owner;
+    address public owner;
 
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
     modifier onlyOwner() {
-        require(_owner == msg.sender, "OnlyOwner");
+        require(owner == msg.sender, "OnlyOwner");
         _;
     }
 
@@ -53,12 +53,12 @@ contract NFTCollection is ERC165, INFTCollection, IERC1155, IERC1155MetadataURI 
             || super.supportsInterface(interfaceId);
     }
 
-    function initialize(address _nftMarketplace, address _newOwner, string memory uri_) external override {
-        if (_owner == address(0)) {
+    function initialize(address _nftMarketplace, address _owner, string memory uri_) external override {
+        if (owner == address(0)) {
             _setURI(uri_);
 
             nftMarketplace = _nftMarketplace;
-            _owner = _newOwner;
+            owner = _owner;
         }
     }
 
@@ -246,7 +246,7 @@ contract NFTCollection is ERC165, INFTCollection, IERC1155, IERC1155MetadataURI 
     }
 
     function mint(address _account, uint256 _id, uint256 _amount, string memory _metadata) external override {
-        require(msg.sender == _owner || msg.sender == nftMarketplace, "NoPermission");
+        require(msg.sender == owner || msg.sender == nftMarketplace, "NoPermission");
         require(_existsId(_id) == false, "DuplicatedId");
 
         _mint(_account, _id, _amount, "");
@@ -254,7 +254,7 @@ contract NFTCollection is ERC165, INFTCollection, IERC1155, IERC1155MetadataURI 
     }
 
     function mint(address _account, uint256 _id, uint256 _amount) external override {
-        require(msg.sender == _owner || msg.sender == nftMarketplace, "NoPermission");
+        require(msg.sender == owner || msg.sender == nftMarketplace, "NoPermission");
         require(_existsId(_id) == false, "DuplicatedId");
 
         _mint(_account, _id, _amount, "");
@@ -329,13 +329,9 @@ contract NFTCollection is ERC165, INFTCollection, IERC1155, IERC1155MetadataURI 
         if (_isContract(to)) _doSafeBatchTransferAcceptanceCheck(operator, address(0), to, ids, amounts, data);
     }
 
-    function owner() public view virtual returns (address) {
-        return _owner;
-    }
-
-    function transferOwnership(address newOwner) external override onlyOwner {
-        _owner = newOwner;
-        emit OwnershipTransferred(_owner, newOwner);
+    function transferOwnership(address _newOwner) external override onlyOwner {
+        owner = _newOwner;
+        emit OwnershipTransferred(owner, _newOwner);
     }
 
     /**

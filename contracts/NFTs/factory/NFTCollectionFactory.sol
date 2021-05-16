@@ -4,34 +4,38 @@ pragma solidity ^0.8.3;
 import "../../interfaces/INFTMarketplace.sol";
 import "../../interfaces/INFTCollection.sol";
 import "../../interfaces/IStaking.sol";
-import "../../utils/TimelockOwnable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/proxy/Clones.sol";
 
-contract NFTCollectionFactory is TimelockOwnable {
+contract NFTCollectionFactory {
 
     address public immutable nftCollectionTemplate;
     address public immutable nftMarketplace;
     address public immutable blizztToken;
     address public stakeToken;
-    uint256 public minRequiredFree;
-    uint256 public minRequiredPremium;
+    uint256 public premiumRequired;
+    address public owner;
 
     event NFTCollectionCreated(address indexed owner, address indexed tokenAddress);
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
-    constructor (address _nftCollectionTemplate, address _nftMarketplace, address _blizztToken, address _stakeToken, uint256 _minRequiredFree, uint256 _minRequiredPremium) TimelockOwnable(msg.sender) {
+    modifier onlyOwner() {
+        require(owner == msg.sender, "OnlyOwner");
+        _;
+    }
+
+    constructor (address _nftCollectionTemplate, address _nftMarketplace, address _blizztToken, address _stakeToken, uint256 _premiumRequired) {
         nftCollectionTemplate = _nftCollectionTemplate;
         nftMarketplace = _nftMarketplace;
         blizztToken = _blizztToken;
         stakeToken = _stakeToken;
-        minRequiredFree = _minRequiredFree;
-        minRequiredPremium = _minRequiredPremium;
+        premiumRequired = _premiumRequired;
+        owner = msg.sender;
     }
 
-    function changeFactoryRequirements(address _stakeToken, uint256 _minRequiredFree, uint256 _minRequiredPremium) external onlyOwner {
+    function changeFactoryRequirements(address _stakeToken, uint256 _premiumRequired) external onlyOwner {
         stakeToken = _stakeToken;
-        minRequiredFree = _minRequiredFree;
-        minRequiredPremium = _minRequiredPremium;
+        premiumRequired = _premiumRequired;
     }
 
     function createNFTCollection(string memory _uri) external {
@@ -47,7 +51,7 @@ contract NFTCollectionFactory is TimelockOwnable {
     function createNFTFullCollection(string memory _uri, uint256[] memory _ids, uint256[] memory _amounts, address[] memory _owners) external {
         require(_ids.length == _owners.length, "WrongArrays");
         require(_ids.length == _amounts.length, "WrongArrays");
-        require(IStaking(blizztToken).balanceOf(msg.sender) >= minRequiredPremium, "NoEnoughTokensPremium");
+        require(IStaking(blizztToken).balanceOf(msg.sender) >= premiumRequired, "NoEnoughTokensPremium");
 
         address nft = Clones.clone(nftCollectionTemplate);
         INFTCollection(nft).initialize(nftMarketplace, address(this), _uri);
@@ -57,9 +61,14 @@ contract NFTCollectionFactory is TimelockOwnable {
         INFTCollection(nft).transferOwnership(msg.sender);
     }
 
+    function transferOwnership(address _newOwner) external onlyOwner {
+        owner = _newOwner;
+        emit OwnershipTransferred(owner, _newOwner);
+    }
+
     function _createNFTCollection(string memory _uri, address _owner) internal returns(address) {
         // Check if the sender has the minimum token required
-        require(IERC20(blizztToken).balanceOf(msg.sender) >= minRequiredFree, "NoEnoughTokensFree");
+        require(IERC20(blizztToken).balanceOf(msg.sender) >= premiumRequired, "NoEnoughTokensFree");
 
         address nft = Clones.clone(nftCollectionTemplate);
         INFTCollection(nft).initialize(nftMarketplace, _owner, _uri);

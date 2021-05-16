@@ -20,7 +20,7 @@ async function doDeploy(deployer, network, accounts) {
     let blizztStaking = await BlizztStaking.deployed();
     console.log('BlizztStaking deployed:', blizztStaking.address);
 
-    await deployer.deploy(NFTMarketplace, blizztToken.address, 2, 3000, 5000);
+    await deployer.deploy(NFTMarketplace, blizztToken.address, [225, 200, 175, 150, 125, 100], [10000, 50000, 100000, 200000, 500000, 1000000]);
     let nftMarketplace = await NFTMarketplace.deployed();
     console.log("NFT Marketplace deployed to:", nftMarketplace.address);
 
@@ -28,7 +28,7 @@ async function doDeploy(deployer, network, accounts) {
     let nftCollectionTemplate = await NFTCollection.deployed();
     console.log("NFTCollection Template deployed to:", nftCollectionTemplate.address);
 
-    await deployer.deploy(NFTCollectionFactory, nftCollectionTemplate.address, nftMarketplace.address, blizztToken.address, blizztStaking.address, 0, 100000);
+    await deployer.deploy(NFTCollectionFactory, nftCollectionTemplate.address, nftMarketplace.address, blizztToken.address, blizztStaking.address, 0);
     let nftFactory = await NFTCollectionFactory.deployed();
     console.log("NFT Factory deployed to:", nftFactory.address);
 }

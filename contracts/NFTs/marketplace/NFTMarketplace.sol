@@ -8,12 +8,17 @@ import '../../interfaces/INFTMarketplace.sol';
 
 contract NFTMarketplace is INFTMarketplace {
 
+    struct TokenRentInfo {
+        uint48 rentExpiresAt;
+        address renter;
+        uint24 amount;
+    }
+
     address private owner;
     address private blizztToken;
     address private nftFactory;
-    uint24 private fee;
-    uint24 private tokensHalfFee;
-    uint24 private tokensNoFee;
+    uint16[] private fees;
+    uint24[] private tokensStaked;
 
     // Mapping from rents
     mapping (uint256 => mapping(address => TokenRentInfo[])) private _rents;
@@ -34,28 +39,24 @@ contract NFTMarketplace is INFTMarketplace {
     /**
      * @notice Constructor
      * @param _blizztToken     --> 
-     * @param _fee              --> 
-     * @param _tokensHalfFee    --> 
-     * @param _tokensNoFee      --> 
+     * @param _fees            --> 
+     * @param _tokensStaked    --> 
      */
-    constructor (address _blizztToken, uint16 _fee, uint24 _tokensHalfFee, uint24 _tokensNoFee) {
+    constructor (address _blizztToken, uint16[] memory _fees, uint24[] memory _tokensStaked) {
         owner = msg.sender;
         blizztToken = _blizztToken;
-        fee = _fee;
-        tokensHalfFee = _tokensHalfFee;
-        tokensNoFee = _tokensNoFee;
+        fees = _fees;
+        tokensStaked = _tokensStaked;
     }
 
     /** 
      * @notice Change the marketplace fees
-     * @param _fee              --> 
-     * @param _tokensHalfFee    --> 
-     * @param _tokensNoFee      --> 
+     * @param _fees              --> 
+     * @param _tokensStaked      --> 
      */
-    function changeFee(uint16 _fee, uint24 _tokensHalfFee, uint24 _tokensNoFee) external onlyOwner {
-        fee = _fee;
-        tokensHalfFee = _tokensHalfFee;
-        tokensNoFee = _tokensNoFee;
+    function changeFee(uint16[] calldata _fees, uint24[] calldata _tokensStaked) external onlyOwner {
+        fees = _fees;
+        tokensStaked = _tokensStaked;
     }
 
     /** 
@@ -64,7 +65,7 @@ contract NFTMarketplace is INFTMarketplace {
      * @param _messageLength  --> 
      * @param _signature      --> 
      */
-    function mintERC1155(bytes memory _params, bytes memory _messageLength, bytes memory _signature) external override payable {
+    function mintERC1155(bytes memory _params, bytes memory _messageLength, bytes memory _signature) external payable {
         address ownerOf = _decodeSignature(_params, _messageLength, _signature);
         (address _erc1155, uint256 _tokenId, uint24 _amount, uint256 _price, address _erc20payment, string memory _metadata, uint256 expirationDate) = abi.decode(_params,(address,uint256,uint24,uint256,address,string,uint256));
         require(expirationDate >= block.timestamp, "Expirated");
@@ -87,24 +88,25 @@ contract NFTMarketplace is INFTMarketplace {
      * @param _seconds        -->
      * @param _signature      --> 
      */
-    function rentERC1155(bytes memory _params, bytes memory _messageLength, uint256 _amount, uint256 _seconds, bytes memory _signature) external override payable {
+    function rentERC1155(bytes memory _params, bytes memory _messageLength, uint256 _amount, uint256 _seconds, bytes memory _signature) external payable {
         address ownerOf = _decodeSignature(_params, _messageLength, _signature);
         (address _erc1155, uint256 _tokenId, uint24 _totalAmount, uint256 _price, address _erc20payment, uint256 _expirationDate) = abi.decode(_params,(address,uint256,uint24,uint256,address,uint256));
         require(_expirationDate >= block.timestamp, "Expirated");
         require(IERC1155(_erc1155).balanceOf(ownerOf, _tokenId) >= _amount, "BadOwner");
         require(_getUserRentedItems(ownerOf, _tokenId) + _amount < _totalAmount, "MaxItemsRented");
+        uint256 rentValue = _amount * _price * _seconds;
 
         _rentERC1155(ownerOf, _erc1155, _tokenId, _amount, _seconds);
         if (_erc20payment == address(0)) {
-            require(msg.value >= (_amount * _price * _seconds), "BadETH");
+            require(msg.value >= rentValue, "InsufficientPayment");
             payable(ownerOf).transfer(msg.value);
         } else {
-            IERC20(_erc20payment).transferFrom(msg.sender, ownerOf, msg.value);
+            IERC20(_erc20payment).transferFrom(msg.sender, ownerOf, rentValue);
         }
 
         // TODO. How to charge a fee for the platform??????
 
-        emit TokenRented(ownerOf, msg.sender, _erc1155, _tokenId, _amount, block.timestamp + (_seconds * 1 seconds), _price * _seconds, _erc20payment);
+        emit TokenRented(ownerOf, msg.sender, _erc1155, _tokenId, _amount, block.timestamp + (_seconds * 1 seconds), rentValue, _erc20payment);
     }
 
     /** 
@@ -114,7 +116,7 @@ contract NFTMarketplace is INFTMarketplace {
      * @param _seconds        -->
      * @param _signature      --> 
      */
-    function rentMultipleERC1155(bytes memory _params, bytes memory _messageLength, uint256 _amount, uint256 _seconds, bytes memory _signature) external override payable {
+    function rentMultipleERC1155(bytes memory _params, bytes memory _messageLength, uint256 _amount, uint256 _seconds, bytes memory _signature) external payable {
         address ownerOf = _decodeSignature(_params, _messageLength, _signature);
         (address _erc1155, uint256[] memory _tokenIds, uint256[] memory _amounts, uint256 _price, address _erc20payment, uint256 _expirationDate) = abi.decode(_params,(address,uint256[],uint256[],uint256,address,uint256));
         require(_expirationDate >= block.timestamp, "Expirated");
@@ -142,7 +144,7 @@ contract NFTMarketplace is INFTMarketplace {
      * @param _amounts    --> 
      * @param _owner      --> 
      */
-    function returnRentedERC1155(address _erc1155, uint256[] memory _tokenIds, uint256[] memory _amounts, address _owner, address _renter) external override {
+    function returnRentedERC1155(address _erc1155, uint256[] memory _tokenIds, uint256[] memory _amounts, address _owner, address _renter) external {
         for (uint i=0; i<_tokenIds.length; i++) {
             TokenRentInfo[] storage rentInfo = _rents[_tokenIds[i]][_owner];
             for (uint j=0; j<rentInfo.length; j++) {
@@ -173,7 +175,7 @@ contract NFTMarketplace is INFTMarketplace {
      * @param _amountBuy      --> 
      * @param _signature      --> 
      */
-    function sellERC1155(bytes memory _params, bytes memory _messageLength, uint256 _amountBuy, bytes memory _signature) external override payable {
+    function sellERC1155(bytes memory _params, bytes memory _messageLength, uint256 _amountBuy, bytes memory _signature) external payable {
         address ownerOf = _decodeSignature(_params, _messageLength, _signature);
         (address _erc1155, uint256 _tokenId, uint24 _amount, uint256 _price, address _erc20payment, bool _packed, uint256 expirationDate) = abi.decode(_params,(address,uint256,uint24,uint256,address,bool,uint256));
         require(expirationDate >= block.timestamp, "Expirated");
@@ -200,7 +202,7 @@ contract NFTMarketplace is INFTMarketplace {
      * @param _messageLength  --> 
      * @param _signature      --> 
      */
-    function sellMultipleERC1155(bytes memory _params, bytes memory _messageLength, bytes memory _signature) external override payable {
+    function sellMultipleERC1155(bytes memory _params, bytes memory _messageLength, bytes memory _signature) external payable {
         address ownerOf = _decodeSignature(_params, _messageLength, _signature);
         (address _erc1155, uint256[] memory _tokenIds, uint256[] memory _amounts, uint256 _price, address _erc20payment, uint256 expirationDate) = abi.decode(_params,(address,uint256[],uint256[],uint256,address,uint256));
         require(expirationDate >= block.timestamp, "Expirated");
@@ -226,7 +228,7 @@ contract NFTMarketplace is INFTMarketplace {
      * @param _messageLength  --> 
      * @param _signature      --> 
      */
-    function swapERC1155(bytes memory _params, bytes memory _messageLength, bytes memory _signature) external override {
+    function swapERC1155(bytes memory _params, bytes memory _messageLength, bytes memory _signature) external {
         address ownerOfFrom = _decodeSignature(_params, _messageLength, _signature);
         (address _fromERC1155, uint256 _fromTokenId, uint256 _fromAmount, address _toERC1155, uint256 _toTokenId, uint256 _toAmount, uint256 expirationDate) = abi.decode(_params,(address,uint256,uint256,address,uint256,uint256,uint256));
         require(expirationDate >= block.timestamp, "Expirated");
@@ -244,7 +246,7 @@ contract NFTMarketplace is INFTMarketplace {
      * @param _messageLength  --> 
      * @param _signature      --> 
      */
-    function swapMultipleERC1155(bytes memory _params, bytes memory _messageLength, bytes memory _signature) external override {
+    function swapMultipleERC1155(bytes memory _params, bytes memory _messageLength, bytes memory _signature) external {
         address ownerOfFrom = _decodeSignature(_params, _messageLength, _signature);
         (address _fromERC1155, uint256[] memory _fromTokenIds, uint256[] memory _fromAmounts, address _toERC1155, uint256[] memory _toTokenIds, uint256[] memory _toAmounts, uint256 _expirationDate) = abi.decode(_params,(address,uint256[],uint256[],address,uint256[],uint256[],uint256));
         require(_expirationDate >= block.timestamp, "Expirated");
@@ -261,8 +263,7 @@ contract NFTMarketplace is INFTMarketplace {
      * @param _account  --> 
      * @param _id       --> 
      */
-    function rentedOf(address _account, uint256 _id) external view override returns (TokenRentInfo[] memory) {
-        require(_account != address(0), "NoZeroAddress");
+    function rentedOf(address _account, uint256 _id) external view returns (TokenRentInfo[] memory) {
         return _rents[_id][_account];
     }
 
@@ -323,5 +324,9 @@ contract NFTMarketplace is INFTMarketplace {
     function transferOwnership(address _newOwner) external onlyOwner {
         require(_newOwner != address(0));
         owner = _newOwner;
+    }
+
+    function getFee() external view returns(uint256) {
+        return tokensStaked[0];
     }
 }
