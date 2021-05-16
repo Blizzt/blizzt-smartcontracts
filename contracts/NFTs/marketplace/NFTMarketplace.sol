@@ -15,14 +15,8 @@ contract NFTMarketplace is INFTMarketplace, TimelockOwnable {
     uint24 private tokensHalfFee;
     uint24 private tokensNoFee;
 
-    struct TokenRentInfo {
-        uint48 rentExpiresAt;
-        address renter;
-        uint24 amount;
-    }
-
     // Mapping from rents
-    mapping (uint256 => mapping(address => TokenRentInfo)) private _rents;
+    mapping (uint256 => mapping(address => TokenRentInfo[])) private _rents;
 
     event TokenRented(address indexed _owner, address indexed _renter, address indexed _erc1155, uint256 _tokenId, uint256 _amount, uint256 _rentedUntil, uint256 _paid, address _erc20payment);
     event TokensRented(address indexed _owner, address indexed _renter, address indexed _erc1155, uint256[] _tokenId, uint256[] _amount, uint256 _rentedUntil, uint256 _paid, address _erc20payment);
@@ -87,18 +81,19 @@ contract NFTMarketplace is INFTMarketplace, TimelockOwnable {
      * @param _seconds        -->
      * @param _signature      --> 
      */
-    function rentERC1155(bytes memory _params, bytes memory _messageLength, uint256 _seconds, bytes memory _signature) external override payable {
+    function rentERC1155(bytes memory _params, bytes memory _messageLength, uint256 _amount, uint256 _seconds, bytes memory _signature) external override payable {
         address ownerOf = _decodeSignature(_params, _messageLength, _signature);
-        (address _erc1155, uint256 _tokenId, uint24 _amount, uint256 _price, address _erc20payment, uint256 _expirationDate) = abi.decode(_params,(address,uint256,uint24,uint256,address,uint256));
+        (address _erc1155, uint256 _tokenId, uint24 _totalAmount, uint256 _price, address _erc20payment, uint256 _expirationDate) = abi.decode(_params,(address,uint256,uint24,uint256,address,uint256));
         require(_expirationDate >= block.timestamp, "Expirated");
         require(IERC1155(_erc1155).balanceOf(ownerOf, _tokenId) >= _amount, "BadOwner");
+        require(_getUserRentedItems(ownerOf, _tokenId) + _amount < _totalAmount, "MaxItemsRented");
 
         _rentERC1155(ownerOf, _erc1155, _tokenId, _amount, _seconds);
         if (_erc20payment == address(0)) {
-            require(_price == msg.value, "BadETH");
-            payable(ownerOf).transfer(_price * _seconds);
+            require(msg.value >= (_amount * _price * _seconds), "BadETH");
+            payable(ownerOf).transfer(msg.value);
         } else {
-            IERC20(_erc20payment).transferFrom(msg.sender, ownerOf, _price * _seconds);
+            IERC20(_erc20payment).transferFrom(msg.sender, ownerOf, msg.value);
         }
 
         // TODO. How to charge a fee for the platform??????
@@ -113,7 +108,7 @@ contract NFTMarketplace is INFTMarketplace, TimelockOwnable {
      * @param _seconds        -->
      * @param _signature      --> 
      */
-    function rentMultipleERC1155(bytes memory _params, bytes memory _messageLength, uint256 _seconds, bytes memory _signature) external override payable {
+    function rentMultipleERC1155(bytes memory _params, bytes memory _messageLength, uint256 _amount, uint256 _seconds, bytes memory _signature) external override payable {
         address ownerOf = _decodeSignature(_params, _messageLength, _signature);
         (address _erc1155, uint256[] memory _tokenIds, uint256[] memory _amounts, uint256 _price, address _erc20payment, uint256 _expirationDate) = abi.decode(_params,(address,uint256[],uint256[],uint256,address,uint256));
         require(_expirationDate >= block.timestamp, "Expirated");
@@ -123,10 +118,10 @@ contract NFTMarketplace is INFTMarketplace, TimelockOwnable {
         for (uint i=0; i< _tokenIds.length; i++) _rentERC1155(ownerOf, _erc1155, _tokenIds[i], _amounts[i], _seconds);
   
         if (_erc20payment == address(0)) {
-            require(_price == msg.value, "BadETH");
-            payable(ownerOf).transfer(_price * _seconds);
+            require(msg.value >= (_amount * _price * _seconds), "BadETH");
+            payable(ownerOf).transfer(msg.value);
         } else {
-            IERC20(_erc20payment).transferFrom(msg.sender, ownerOf, _price * _seconds);
+            IERC20(_erc20payment).transferFrom(msg.sender, ownerOf, msg.value);
         }
 
         // TODO. How to charge a fee for the platform??????
@@ -141,15 +136,25 @@ contract NFTMarketplace is INFTMarketplace, TimelockOwnable {
      * @param _amounts    --> 
      * @param _owner      --> 
      */
-    function returnRentedERC1155(address _erc1155, uint256[] memory _tokenIds, uint256[] memory _amounts, address _owner) external override {
-        for (uint i=0; i< _tokenIds.length; i++) {
-            require(_rents[_tokenIds[i]][_owner].rentExpiresAt > 0, "NoRented");
-            require(_rents[_tokenIds[i]][_owner].amount > 0, "NoRented");
-            require(block.timestamp > _rents[_tokenIds[i]][_owner].rentExpiresAt, "RentStillActive");
+    function returnRentedERC1155(address _erc1155, uint256[] memory _tokenIds, uint256[] memory _amounts, address _owner, address _renter) external override {
+        for (uint i=0; i<_tokenIds.length; i++) {
+            TokenRentInfo[] storage rentInfo = _rents[_tokenIds[i]][_owner];
+            for (uint j=0; j<rentInfo.length; j++) {
+                if (rentInfo[j].renter == _renter && rentInfo[j].amount == _amounts[i] && rentInfo[j].rentExpiresAt < block.timestamp) {
+                    TokenRentInfo memory tokenRent = rentInfo[j];
+                    require(tokenRent.rentExpiresAt > 0, "NoRented");
+                    require(tokenRent.amount > 0, "NoRented");
+                    require(block.timestamp >= tokenRent.rentExpiresAt, "RentStillActive");
 
-            INFTCollection(_erc1155).safeTransferForRent(_rents[_tokenIds[i]][_owner].renter, _owner, _tokenIds[i], _amounts[i]);
-            _rents[_tokenIds[i]][_owner].amount -= uint24(_amounts[i]);
-            if (_rents[_tokenIds[i]][_owner].amount == 0) delete _rents[_tokenIds[i]][_owner];
+                    INFTCollection(_erc1155).safeTransferForRent(tokenRent.renter, _owner, _tokenIds[i], _amounts[i]);
+                    if (rentInfo.length > 1) {
+                        rentInfo[j] = rentInfo[rentInfo.length-1];
+                        rentInfo.pop();
+                    } else {
+                        delete _rents[_tokenIds[i]][_owner];
+                    }
+                }
+            }
         }
 
         emit TokensReturned(_erc1155, _tokenIds, _amounts, _owner);
@@ -235,8 +240,8 @@ contract NFTMarketplace is INFTMarketplace, TimelockOwnable {
      */
     function swapMultipleERC1155(bytes memory _params, bytes memory _messageLength, bytes memory _signature) external override {
         address ownerOfFrom = _decodeSignature(_params, _messageLength, _signature);
-        (address _fromERC1155, uint256[] memory _fromTokenIds, uint256[] memory _fromAmounts, address _toERC1155, uint256[] memory _toTokenIds, uint256[] memory _toAmounts, uint256 expirationDate) = abi.decode(_params,(address,uint256[],uint256[],address,uint256[],uint256[],uint256));
-        require(expirationDate >= block.timestamp, "Expirated");
+        (address _fromERC1155, uint256[] memory _fromTokenIds, uint256[] memory _fromAmounts, address _toERC1155, uint256[] memory _toTokenIds, uint256[] memory _toAmounts, uint256 _expirationDate) = abi.decode(_params,(address,uint256[],uint256[],address,uint256[],uint256[],uint256));
+        require(_expirationDate >= block.timestamp, "Expirated");
         for (uint i=0; i<_fromTokenIds.length; i++) require(IERC1155(_fromERC1155).balanceOf(ownerOfFrom, _fromTokenIds[i]) >= _fromAmounts[i], "BadOwner");
 
         IERC1155(_fromERC1155).safeBatchTransferFrom(ownerOfFrom, msg.sender, _fromTokenIds, _fromAmounts, "");
@@ -246,36 +251,22 @@ contract NFTMarketplace is INFTMarketplace, TimelockOwnable {
     }
 
     /**
-     * @notice Returns the amount of an NFT that an account has put for rent
+     * @notice Returns the rent data of an NFT that an account has put for rent
      * @param _account  --> 
      * @param _id       --> 
      */
-    function rentedOf(address _account, uint256 _id) external view override returns (uint256) {
+    function rentedOf(address _account, uint256 _id) external view override returns (TokenRentInfo[] memory) {
         require(_account != address(0), "NoZeroAddress");
-        return _rents[_id][_account].amount;
+        return _rents[_id][_account];
     }
 
     /**
-     * @notice Returns the entire list of NFTs that an account has put for rent
-     * @param _account  --> 
-     * @param _ids      --> 
+     * @notice Returns the amount of an NFT that an account has put for rent
+     * @param _ownerOf  --> 
+     * @param _tokenId  --> 
      */
-    function rentedOfBatch(
-        address _account,
-        uint256[] memory _ids
-    )
-        external
-        view
-        override
-        returns (uint256[] memory)
-    {
-        uint256[] memory batchBalances = new uint256[](_ids.length);
-
-        for (uint256 i = 0; i < _ids.length; ++i) {
-            batchBalances[i] = _rents[_ids[i]][_account].amount;
-        }
-
-        return batchBalances;
+    function getUserRentedItems(address _ownerOf, uint256 _tokenId) external view override returns(uint256 amount) {
+        return _getUserRentedItems(_ownerOf, _tokenId);
     }
 
     /**
@@ -287,12 +278,12 @@ contract NFTMarketplace is INFTMarketplace, TimelockOwnable {
      * @param _seconds  --> 
      */
     function _rentERC1155(address _ownerOf, address _erc1155, uint256 _tokenId, uint256 _amount, uint256 _seconds) internal {
-        // TODO. Que pasa si la misma persona alquila 2 copias del mismo NFT en dos momentos o a dos personas diferentes???????? Pensar el caso
-        _rents[_tokenId][_ownerOf] = TokenRentInfo({
+        _rents[_tokenId][_ownerOf].push(TokenRentInfo({
             rentExpiresAt: uint48(block.timestamp + (_seconds * 1 seconds)),
             renter: msg.sender,
             amount: uint24(_amount)
-        });
+        }));
+
         INFTCollection(_erc1155).safeTransferForRent(_ownerOf, msg.sender, _tokenId, _amount);
     }
 
@@ -314,5 +305,12 @@ contract NFTMarketplace is INFTMarketplace, TimelockOwnable {
             v := byte(0, mload(add(_signature, 0x60)))
         }
         return ecrecover(messageHash, v, r, s);
+    }
+
+    function _getUserRentedItems(address _ownerOf, uint256 _tokenId) internal view returns(uint256 amount) {
+        TokenRentInfo[] memory rents = _rents[_tokenId][_ownerOf];
+        for (uint i=0; i<rents.length; i++) {
+            amount += rents[i].amount;
+        }
     }
 }
