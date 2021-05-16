@@ -1,6 +1,4 @@
 const BlizztToken = artifacts.require("./BlizztToken.sol");
-const BlizztGovernorV1 = artifacts.require("./BlizztGovernorV1.sol");
-const Timelock = artifacts.require("./Timelock.sol");
 const NFTCollectionFactory = artifacts.require("./NFTCollectionFactory.sol");
 const NFTCollection = artifacts.require("./NFTCollection.sol");
 const DummyUSDT = artifacts.require("./DummyUSDT.sol");
@@ -21,16 +19,6 @@ async function doDeploy(deployer, network, accounts) {
     await deployer.deploy(BlizztStaking, blizztToken.address);
     let blizztStaking = await BlizztStaking.deployed();
     console.log('BlizztStaking deployed:', blizztStaking.address);
-
-    await deployer.deploy(BlizztGovernorV1);
-    let governor = await BlizztGovernorV1.deployed();
-    console.log('BlizztGovernorV1 deployed:', governor.address);
-
-    await deployer.deploy(Timelock, accounts[0], delay);
-    let timelock = await Timelock.deployed();
-    console.log('Timelock deployed:', timelock.address);
-
-    await governor.init(blizztToken.address, timelock.address);
 
     await deployer.deploy(NFTMarketplace, blizztToken.address, 2, 3000, 5000);
     let nftMarketplace = await NFTMarketplace.deployed();

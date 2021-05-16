@@ -5,10 +5,10 @@ import '../../interfaces/INFTCollection.sol';
 import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import '../../interfaces/INFTMarketplace.sol';
-import "../../utils/TimelockOwnable.sol";
 
-contract NFTMarketplace is INFTMarketplace, TimelockOwnable {
+contract NFTMarketplace is INFTMarketplace {
 
+    address private owner;
     address private blizztToken;
     address private nftFactory;
     uint24 private fee;
@@ -26,6 +26,11 @@ contract NFTMarketplace is INFTMarketplace, TimelockOwnable {
     event TokenSwapped(address _fromWallet, address indexed _fromERC1155, uint256 _fromTokenId, uint256 _fromAmount, address _toWallet, address indexed _toERC1155, uint256 _toTokenId, uint256 _toAmount);
     event TokensSwapped(address _fromWallet, address indexed _fromERC1155, uint256[] _fromTokenIds, uint256[] _fromAmounts, address _toWallet, address _toERC1155, uint256[] _toTokenIds, uint256[] _toAmounts);
 
+    modifier onlyOwner() {
+        require(owner == msg.sender, "NoOwner");
+        _;
+    }
+
     /**
      * @notice Constructor
      * @param _blizztToken     --> 
@@ -33,7 +38,8 @@ contract NFTMarketplace is INFTMarketplace, TimelockOwnable {
      * @param _tokensHalfFee    --> 
      * @param _tokensNoFee      --> 
      */
-    constructor (address _blizztToken, uint16 _fee, uint24 _tokensHalfFee, uint24 _tokensNoFee) TimelockOwnable(msg.sender) {
+    constructor (address _blizztToken, uint16 _fee, uint24 _tokensHalfFee, uint24 _tokensNoFee) {
+        owner = msg.sender;
         blizztToken = _blizztToken;
         fee = _fee;
         tokensHalfFee = _tokensHalfFee;
@@ -312,5 +318,10 @@ contract NFTMarketplace is INFTMarketplace, TimelockOwnable {
         for (uint i=0; i<rents.length; i++) {
             amount += rents[i].amount;
         }
+    }
+
+    function transferOwnership(address _newOwner) external onlyOwner {
+        require(_newOwner != address(0));
+        owner = _newOwner;
     }
 }
