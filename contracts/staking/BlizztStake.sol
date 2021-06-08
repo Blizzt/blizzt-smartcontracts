@@ -2,9 +2,10 @@
 pragma solidity ^0.8.3;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "../interfaces/IStaking.sol";
+import "../interfaces/IBlizztStake.sol";
 
-contract BlizztStaking is IStaking {
+contract BlizztStake is IBlizztStake {
+    // Añadir función burn al staker
 
     address immutable private blizztToken;
     mapping(address => uint256) private balances;
@@ -13,7 +14,7 @@ contract BlizztStaking is IStaking {
         blizztToken = _blizztToken;
     }
 
-    function stake(uint256 _tokens) external override {
+    function stake(uint256 _tokens) external {
         IERC20(blizztToken).transferFrom(msg.sender, address(this), _tokens);
         balances[msg.sender] += _tokens;
     }
@@ -22,7 +23,7 @@ contract BlizztStaking is IStaking {
         return balances[account];
     }
 
-    function withdraw() external override {
+    function withdraw() external {
 
     }
 }

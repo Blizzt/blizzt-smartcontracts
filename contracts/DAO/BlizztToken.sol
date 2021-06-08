@@ -5,7 +5,7 @@ import '@openzeppelin/contracts/token/ERC20/ERC20.sol';
 
 contract BlizztToken is ERC20 {
     constructor() ERC20("Blizzt", "BLZ") {
-        _mint(msg.sender, 100000 * 10**18);
+        _mint(msg.sender, 1000000000 * 10**18);
     }
 
     // Copied and modified from YAM code:

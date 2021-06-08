@@ -401,7 +401,7 @@ contract NFTCollection is ERC165, INFTCollection, IERC1155, IERC1155MetadataURI 
         view
     {
         uint tokenAmount = _balances[id].balance[from];
-        uint rentedAmount = INFTMarketplace(nftMarketplace).getUserRentedItems(to, id);
+        uint rentedAmount = INFTMarketplace(nftMarketplace).getUserRentedItems(to, address(this), id);
         require(tokenAmount - rentedAmount >= amount, "TokenRented");
     }
 
