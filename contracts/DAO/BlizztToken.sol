@@ -8,6 +8,10 @@ contract BlizztToken is ERC20 {
         _mint(msg.sender, 1000000000 * 10**18);
     }
 
+    function burn(uint256 _amount) external {
+        _burn(msg.sender, _amount);
+    }
+
     // Copied and modified from YAM code:
     // https://github.com/yam-finance/yam-protocol/blob/master/contracts/token/YAMGovernanceStorage.sol
     // https://github.com/yam-finance/yam-protocol/blob/master/contracts/token/YAMGovernance.sol
