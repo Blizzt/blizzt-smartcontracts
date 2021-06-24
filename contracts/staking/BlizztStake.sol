@@ -1,22 +1,34 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.3;
+pragma solidity ^0.8.4;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "../interfaces/IBlizztToken.sol";
 import "../interfaces/IBlizztStake.sol";
 
 contract BlizztStake is IBlizztStake {
-    // Añadir función burn al staker
 
     address immutable private blizztToken;
+    address private owner;
+    address private nftMarketplace;
     mapping(address => uint256) private balances;
+
+    event BlizztTokenStaked(address indexed _user, uint indexed _amount);
+    event Withdraw(address indexed _user, uint indexed _amount);
 
     constructor(address _blizztToken) {
         blizztToken = _blizztToken;
+        owner = msg.sender;
     }
 
-    function stake(uint256 _tokens) external {
-        IERC20(blizztToken).transferFrom(msg.sender, address(this), _tokens);
-        balances[msg.sender] += _tokens;
+    function setMarketplace(address _nftMarketplace) external {
+        require(owner == msg.sender, "OnlyOwner");
+        nftMarketplace = _nftMarketplace;
+    }
+
+    function stake(uint256 _amount) external {
+        IBlizztToken(blizztToken).transferFrom(msg.sender, address(this), _amount);
+        balances[msg.sender] += _amount;
+
+        emit BlizztTokenStaked(msg.sender, _amount);
     }
 
     function balanceOf(address account) external view override returns(uint256) {
@@ -24,6 +36,18 @@ contract BlizztStake is IBlizztStake {
     }
 
     function withdraw() external {
+        uint256 balance = balances[msg.sender];
+        require(balance <= IBlizztToken(blizztToken).balanceOf(address(this)), "NotEnoughBalance");
+        
+        delete balances[msg.sender];
+        IBlizztToken(blizztToken).transfer(msg.sender, balance);
 
+        emit Withdraw(msg.sender, balance);
+    }
+
+    function burn(address _user, uint256 _amount) external {
+        require(msg.sender == nftMarketplace, "OnlyMarketplace");
+        balances[_user] -= _amount;
+        IBlizztToken(blizztToken).burn(_amount);
     }
 }

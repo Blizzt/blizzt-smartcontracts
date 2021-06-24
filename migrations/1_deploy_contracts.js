@@ -2,11 +2,11 @@ const BlizztToken = artifacts.require("./BlizztToken.sol");
 const NFTCollectionFactory = artifacts.require("./NFTCollectionFactory.sol");
 const NFTCollection = artifacts.require("./NFTCollection.sol");
 const DummyUSDT = artifacts.require("./DummyUSDT.sol");
+const DepositVesting = artifacts.require("./DepositVesting.sol");
 const NFTMarketplace = artifacts.require("./NFTMarketplace");
 const BlizztStake = artifacts.require("./BlizztStake");
 
 async function doDeploy(deployer, network, accounts) {
-    let delay = 3;
 
     await deployer.deploy(DummyUSDT, web3.utils.toWei('200000000'));
     let dummyUSDT = await DummyUSDT.deployed();
@@ -18,11 +18,17 @@ async function doDeploy(deployer, network, accounts) {
 
     await deployer.deploy(BlizztStake, blizztToken.address);
     let blizztStake = await BlizztStake.deployed();
-    console.log('blizztStake deployed:', blizztStake.address);
+    console.log('BlizztStake deployed:', blizztStake.address);
 
-    await deployer.deploy(NFTMarketplace, blizztStake.address, accounts[1], 100, 250, 1000000);
+    await deployer.deploy(DepositVesting, depositVesting.address);
+    let depositVesting = await DepositVesting.deployed();
+    console.log('DepositVesting deployed:', depositVesting.address);
+
+    await deployer.deploy(NFTMarketplace, blizztStake.address, depositVesting.address, accounts[1], 100, 250, 1000000);
     let nftMarketplace = await NFTMarketplace.deployed();
     console.log("NFT Marketplace deployed to:", nftMarketplace.address);
+
+    await blizztStake.setMarketplace(nftMarketplace.address);
 
     await deployer.deploy(NFTCollection);
     let nftCollectionTemplate = await NFTCollection.deployed();

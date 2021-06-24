@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.3;
+pragma solidity ^0.8.4;
 
 import '@openzeppelin/contracts/token/ERC1155/IERC1155.sol';
 import "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
@@ -7,6 +7,7 @@ import "@openzeppelin/contracts/token/ERC1155/extensions/IERC1155MetadataURI.sol
 import "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import "../../interfaces/INFTCollection.sol";
 import "../../interfaces/INFTMarketplace.sol";
+import "../../interfaces/INFTCollectionFactory.sol";
 
 /**
  *
@@ -33,8 +34,7 @@ contract NFTCollection is ERC165, INFTCollection, IERC1155, IERC1155MetadataURI 
 
     // Used as the URI for all token types by relying on ID substitution, e.g. https://token-cdn-domain/{id}.json
     string private _uri;
-
-    address private nftMarketplace;
+    address private collectionFactory;
     address public owner;
 
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
@@ -53,11 +53,11 @@ contract NFTCollection is ERC165, INFTCollection, IERC1155, IERC1155MetadataURI 
             || super.supportsInterface(interfaceId);
     }
 
-    function initialize(address _nftMarketplace, address _owner, string memory uri_) external override {
+    function initialize(address _collectionFactory, address _owner, string memory uri_) external override {
         if (owner == address(0)) {
             _setURI(uri_);
 
-            nftMarketplace = _nftMarketplace;
+            collectionFactory = _collectionFactory;
             owner = _owner;
         }
     }
@@ -143,7 +143,8 @@ contract NFTCollection is ERC165, INFTCollection, IERC1155, IERC1155MetadataURI 
      * @dev See {IERC1155-isApprovedForAll}.
      */
     function isApprovedForAll(address account, address operator) public view virtual override returns (bool) {
-        if (msg.sender == nftMarketplace) return true;
+        address nftMarketplace = INFTCollectionFactory(collectionFactory).getMarketplace();
+        if ((msg.sender == nftMarketplace) || (msg.sender == INFTMarketplace(nftMarketplace).getDepositVesting())) return true;
         
         return _operatorApprovals[account][operator];
     }
@@ -191,7 +192,7 @@ contract NFTCollection is ERC165, INFTCollection, IERC1155, IERC1155MetadataURI 
         external
         override
     {
-        require(msg.sender == nftMarketplace, "OnlyMarketPlace");
+        require(msg.sender == INFTCollectionFactory(collectionFactory).getMarketplace(), "OnlyMarketPlace");
         require(to != address(0), "NoZeroAddress");
         address operator = msg.sender;
 
@@ -246,7 +247,7 @@ contract NFTCollection is ERC165, INFTCollection, IERC1155, IERC1155MetadataURI 
     }
 
     function mint(address _account, uint256 _id, uint256 _amount, string memory _metadata) external override {
-        require(msg.sender == owner || msg.sender == nftMarketplace, "NoPermission");
+        require(msg.sender == owner || msg.sender == INFTCollectionFactory(collectionFactory).getMarketplace(), "NoPermission");
         require(_existsId(_id) == false, "DuplicatedId");
 
         _mint(_account, _id, _amount, "");
@@ -254,7 +255,7 @@ contract NFTCollection is ERC165, INFTCollection, IERC1155, IERC1155MetadataURI 
     }
 
     function mint(address _account, uint256 _id, uint256 _amount) external override {
-        require(msg.sender == owner || msg.sender == nftMarketplace, "NoPermission");
+        require(msg.sender == owner || msg.sender == INFTCollectionFactory(collectionFactory).getMarketplace(), "NoPermission");
         require(_existsId(_id) == false, "DuplicatedId");
 
         _mint(_account, _id, _amount, "");
@@ -400,6 +401,7 @@ contract NFTCollection is ERC165, INFTCollection, IERC1155, IERC1155MetadataURI 
         internal 
         view
     {
+        address nftMarketplace = INFTCollectionFactory(collectionFactory).getMarketplace();
         uint tokenAmount = _balances[id].balance[from];
         uint rentedAmount = INFTMarketplace(nftMarketplace).getUserRentedItems(to, address(this), id);
         require(tokenAmount - rentedAmount >= amount, "TokenRented");

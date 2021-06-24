@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.3;
+pragma solidity ^0.8.4;
 
 import '../../interfaces/INFTCollection.sol';
 import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
@@ -22,6 +22,7 @@ contract NFTMarketplace is INFTMarketplace {
     address private blizztStake;
     uint24 private maxStakedTokens;
     address private nftFactory;
+    address private depositVesting;
     
     // Mapping from rents
     mapping(address => mapping (uint256 => mapping(address => TokenRentInfo[]))) private _rents;
@@ -48,10 +49,11 @@ contract NFTMarketplace is INFTMarketplace {
      * @param _maxFee           --> 
      * @param _maxStakedTokens  --> 
      */
-    constructor (address _blizztStake, address _feesWallet, uint24 _minFee, uint24 _maxFee, uint24 _maxStakedTokens) {
+    constructor (address _blizztStake, address _depositVesting, address _feesWallet, uint24 _minFee, uint24 _maxFee, uint24 _maxStakedTokens) {
         owner = msg.sender;
         feesWallet = _feesWallet;
         blizztStake = _blizztStake;
+        depositVesting = _depositVesting;
         minFee = _minFee;
         maxFee = _maxFee;
         maxStakedTokens = _maxStakedTokens;
@@ -69,17 +71,7 @@ contract NFTMarketplace is INFTMarketplace {
         require(expirationDate >= block.timestamp, "Expirated");
 
         INFTCollection(_erc1155).mint(msg.sender, _tokenId, _amount, _metadata);
-        if (_price > 0) {
-            uint256 fee = _price * _getFee() / 10000;
-            uint256 adjustedPrice = _price - fee;
-            if (_erc20payment == address(0)) {
-                require(_price == msg.value, "BadETH");
-                payable(ownerOf).transfer(adjustedPrice);
-            } else {
-                IERC20(_erc20payment).transferFrom(msg.sender, ownerOf, adjustedPrice);
-                if (fee > 0) IERC20(_erc20payment).transferFrom(msg.sender, address(this), fee);
-            }
-        }
+        if (_price > 0) _pay(ownerOf, _price, _erc20payment);
     }
 
     /** 
@@ -165,13 +157,14 @@ contract NFTMarketplace is INFTMarketplace {
     function sellERC1155(bytes memory _params, bytes memory _messageLength, uint256 _amountBuy, bytes memory _signature) external payable {
         address ownerOf = _decodeSignature(_params, _messageLength, _signature);
         (address _erc1155, uint256 _tokenId, uint24 _amount, uint256 _price, address _erc20payment, bool _packed, uint256 expirationDate) = abi.decode(_params,(address,uint256,uint24,uint256,address,bool,uint256));
-        require(expirationDate >= block.timestamp, "Expirated");
+        require(expirationDate == 0 || expirationDate >= block.timestamp, "Expirated");
         require(IERC1155(_erc1155).balanceOf(ownerOf, _tokenId) >= _amount, "BadOwner");
         if (_packed) require(_amount == _amountBuy, "MustBuyAll");
         _price = _price * _amountBuy;
 
         IERC1155(_erc1155).safeTransferFrom(ownerOf, msg.sender, _tokenId, _amount, "");
-        _pay(ownerOf, _price, _erc20payment);
+        if (expirationDate == 0) _pay(depositVesting, _price, _erc20payment);
+        else _pay(ownerOf, _price, _erc20payment);
         
         emit TokenSold(msg.sender, ownerOf, _erc1155, _tokenId, _amountBuy, _price, _erc20payment);
     }
@@ -185,12 +178,13 @@ contract NFTMarketplace is INFTMarketplace {
     function sellMultipleERC1155(bytes memory _params, bytes memory _messageLength, bytes memory _signature) external payable {
         address ownerOf = _decodeSignature(_params, _messageLength, _signature);
         (address _erc1155, uint256[] memory _tokenIds, uint256[] memory _amounts, uint256 _price, address _erc20payment, uint256 expirationDate) = abi.decode(_params,(address,uint256[],uint256[],uint256,address,uint256));
-        require(expirationDate >= block.timestamp, "Expirated");
+        require(expirationDate == 0 || expirationDate >= block.timestamp, "Expirated");
         for (uint i=0; i<_tokenIds.length; i++) require(IERC1155(_erc1155).balanceOf(ownerOf, _tokenIds[i]) >= _amounts[i], "BadOwner");
 
         IERC1155(_erc1155).safeBatchTransferFrom(ownerOf, msg.sender, _tokenIds, _amounts, "");
-        _pay(ownerOf, _price, _erc20payment);
-
+        if (expirationDate == 0) _pay(depositVesting, _price, _erc20payment);
+        else _pay(ownerOf, _price, _erc20payment);
+        
         emit TokensSold(msg.sender, ownerOf, _erc1155, _tokenIds, _amounts, _price, _erc20payment);
     }
 
@@ -203,11 +197,10 @@ contract NFTMarketplace is INFTMarketplace {
     function swapERC1155(bytes memory _params, bytes memory _messageLength, bytes memory _signature) external {
         address ownerOfFrom = _decodeSignature(_params, _messageLength, _signature);
         (address _fromERC1155, uint256 _fromTokenId, uint256 _fromAmount, address _toERC1155, uint256 _toTokenId, uint256 _toAmount, uint256 expirationDate) = abi.decode(_params,(address,uint256,uint256,address,uint256,uint256,uint256));
-        require(expirationDate >= block.timestamp, "Expirated");
+        require(expirationDate == 0 || expirationDate >= block.timestamp, "Expirated");
         require(IERC1155(_fromERC1155).balanceOf(ownerOfFrom, _fromTokenId) >= _fromAmount, "BadOwner");
 
         // TODO. Check that two users have Blizz token staked
-
         IERC1155(_fromERC1155).safeTransferFrom(ownerOfFrom, msg.sender, _fromTokenId, _fromAmount, "");
         IERC1155(_toERC1155).safeTransferFrom(msg.sender, ownerOfFrom, _toTokenId, _toAmount, "");
 
@@ -373,5 +366,9 @@ contract NFTMarketplace is INFTMarketplace {
      */
     function updateBlizztStake(address _newBlizztStake) external onlyOwner {
         blizztStake = _newBlizztStake;
+    }
+
+    function getDepositVesting() external view override returns (address) {
+        return depositVesting;
     }
 }

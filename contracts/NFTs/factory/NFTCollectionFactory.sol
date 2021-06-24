@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.3;
+pragma solidity ^0.8.4;
 
+import "../../interfaces/INFTCollectionFactory.sol";
 import "../../interfaces/INFTMarketplace.sol";
 import "../../interfaces/INFTCollection.sol";
 import "../../interfaces/IBlizztStake.sol";
 import "@openzeppelin/contracts/proxy/Clones.sol";
 
-contract NFTCollectionFactory {
+contract NFTCollectionFactory is INFTCollectionFactory {
 
     address public immutable nftCollectionTemplate;
-    address public immutable nftMarketplace;
+    address public nftMarketplace;
     address public blizztStake;
     uint256 public premiumRequired;
     address public owner;
@@ -35,6 +36,14 @@ contract NFTCollectionFactory {
         premiumRequired = _premiumRequired;
     }
 
+    function changeMarketplace(address _nftMarketplace) external onlyOwner {
+        nftMarketplace = _nftMarketplace;
+    }
+
+    function getMarketplace() external view override returns (address) {
+        return nftMarketplace;
+    }
+
     function createNFTCollection(string memory _uri) external {
         _createNFTCollection(_uri, msg.sender);
     }
@@ -51,7 +60,7 @@ contract NFTCollectionFactory {
         require(IBlizztStake(blizztStake).balanceOf(msg.sender) >= premiumRequired, "NoEnoughTokensPremium");
 
         address nft = Clones.clone(nftCollectionTemplate);
-        INFTCollection(nft).initialize(nftMarketplace, address(this), _uri);
+        INFTCollection(nft).initialize(address(this), address(this), _uri);
         uint256 len = _ids.length;
         for (uint256 i=0; i<len; i++) INFTCollection(nft).mint(_owners[i], _ids[i], _amounts[i]);
 
@@ -68,7 +77,7 @@ contract NFTCollectionFactory {
         require(IBlizztStake(blizztStake).balanceOf(msg.sender) >= premiumRequired, "NoEnoughTokensStaked");
 
         address nft = Clones.clone(nftCollectionTemplate);
-        INFTCollection(nft).initialize(nftMarketplace, _owner, _uri);
+        INFTCollection(nft).initialize(address(this), _owner, _uri);
 
         emit NFTCollectionCreated(msg.sender, nft);
 
