@@ -144,7 +144,7 @@ contract NFTCollection is ERC165, INFTCollection, IERC1155, IERC1155MetadataURI 
      */
     function isApprovedForAll(address account, address operator) public view virtual override returns (bool) {
         address nftMarketplace = INFTCollectionFactory(collectionFactory).getMarketplace();
-        if ((msg.sender == nftMarketplace) || (msg.sender == INFTMarketplace(nftMarketplace).getDepositVesting())) return true;
+        if (msg.sender == nftMarketplace) return true;
         
         return _operatorApprovals[account][operator];
     }

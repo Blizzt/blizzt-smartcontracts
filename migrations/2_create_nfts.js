@@ -12,8 +12,8 @@ async function doDeploy(deployer, network, accounts) {
     let nftFactory = await NFTCollectionFactory.deployed();
     console.log("NFT Factory deployed to:", nftFactory.address);
 
-    //let tx2 = await nftFactory.createNFTCollectionWithFirstItem("ipfs://", 10, 15, "QmaozNR7DZHQK1ZcU9p7QdrshMvXqWK6gpu5rmrkPdT3L4");
-    //console.log(tx2.logs[0].args.tokenAddress);
+    let tx2 = await nftFactory.createNFTCollectionWithFirstItem("ipfs://", 10, 15, "QmaozNR7DZHQK1ZcU9p7QdrshMvXqWK6gpu5rmrkPdT3L4");
+    console.log(tx2.logs[0].args.tokenAddress);
 
     //let sellParams = web3.eth.abi.encodeParameters(['address','uint256','uint24','uint256','address','bool','uint256'], [tx2.logs[0].args.tokenAddress, 1, 10, web3.utils.toWei('1000'), dummyUSDT.address, false, 123456789]);
     //let signature = await web3.eth.accounts.sign(sellParams, '12305200869b442bc4de1c126328b1cb2b6b275b32ad474bd7a1b0d3f24418b3');
@@ -45,6 +45,8 @@ async function doDeploy(deployer, network, accounts) {
     await token.safeTransferFrom(accounts[0], accounts[1], 2, 4, "0x00");
     await token.safeTransferFrom(accounts[0], accounts[2], 2, 5, "0x00");
 
+    /*
+    
     await dummyUSDT.transfer(accounts[2], web3.utils.toWei('100000'));
     await dummyUSDT.transfer(accounts[3], web3.utils.toWei('100000'));
     await dummyUSDT.approve(nftMarketplace.address, web3.utils.toWei('20000'), {from: accounts[2]});

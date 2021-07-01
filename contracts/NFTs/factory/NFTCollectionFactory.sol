@@ -10,7 +10,7 @@ import "@openzeppelin/contracts/proxy/Clones.sol";
 contract NFTCollectionFactory is INFTCollectionFactory {
 
     address public immutable nftCollectionTemplate;
-    address public nftMarketplace;
+    address private nftMarketplace;
     address public blizztStake;
     uint256 public premiumRequired;
     address public owner;
@@ -31,12 +31,12 @@ contract NFTCollectionFactory is INFTCollectionFactory {
         owner = msg.sender;
     }
 
-    function changeFactoryRequirements(address _blizztStake, uint256 _premiumRequired) external onlyOwner {
+    function updateFactoryRequirements(address _blizztStake, uint256 _premiumRequired) external onlyOwner {
         blizztStake = _blizztStake;
         premiumRequired = _premiumRequired;
     }
 
-    function changeMarketplace(address _nftMarketplace) external onlyOwner {
+    function updateMarketplace(address _nftMarketplace) external onlyOwner {
         nftMarketplace = _nftMarketplace;
     }
 

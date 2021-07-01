@@ -5,26 +5,32 @@ const DummyUSDT = artifacts.require("./DummyUSDT.sol");
 const DepositVesting = artifacts.require("./DepositVesting.sol");
 const NFTMarketplace = artifacts.require("./NFTMarketplace");
 const BlizztStake = artifacts.require("./BlizztStake");
+const NFTMarketplaceAdmin = artifacts.require("./NFTMarketplaceAdmin");
+const NFTMarketplaceProxy = artifacts.require("./NFTMarketplaceProxy");
 
 async function doDeploy(deployer, network, accounts) {
 
-    await deployer.deploy(DummyUSDT, web3.utils.toWei('200000000'));
-    let dummyUSDT = await DummyUSDT.deployed();
-    console.log('DummyUSDT deployed:', dummyUSDT.address);
-
+    // Deploy the BlizztToken ERC20
     await deployer.deploy(BlizztToken);
     let blizztToken = await BlizztToken.deployed();
     console.log('BlizztToken deployed:', blizztToken.address);
 
+    // Deploy the Stake contract
     await deployer.deploy(BlizztStake, blizztToken.address);
     let blizztStake = await BlizztStake.deployed();
     console.log('BlizztStake deployed:', blizztStake.address);
 
-    await deployer.deploy(DepositVesting, depositVesting.address);
-    let depositVesting = await DepositVesting.deployed();
-    console.log('DepositVesting deployed:', depositVesting.address);
+    await deployer.deploy(NFTMarketplaceAdmin);
+    let nftMarketplaceAdmin = await NFTMarketplaceAdmin.deployed();
+    console.log('NFTMarketplaceAdmin deployed:', nftMarketplaceAdmin.address);
 
-    await deployer.deploy(NFTMarketplace, blizztStake.address, depositVesting.address, accounts[1], 100, 250, 1000000);
+    await deployer.deploy(NFTMarketplaceProxy);
+    let nftMarketplaceProxy = await NFTMarketplaceProxy.deployed();
+    console.log('NFTMarketplaceProxy deployed:', nftMarketplaceProxy.address);
+
+    await nftMarketplaceAdmin.setProxy(nftMarketplaceProxy.address);
+
+    await deployer.deploy(NFTMarketplace, blizztStake.address, accounts[1], nftMarketplaceAdmin.address, 100, 250, 1000000);
     let nftMarketplace = await NFTMarketplace.deployed();
     console.log("NFT Marketplace deployed to:", nftMarketplace.address);
 
