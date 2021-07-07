@@ -207,8 +207,10 @@ contract NFTMarketplaceProxy is NFTMarketplaceData {
         (address _erc1155, uint256 _tokenId, uint24 _amount, uint256 _price, address _erc20payment, bool _packed, ) = abi.decode(_params,(address,uint256,uint24,uint256,address,bool,uint256));
         require(cancelledProjects[_erc1155] == true, "NotCancelled");
         require(IERC1155(_erc1155).balanceOf(msg.sender, _tokenId) >= _amount, "BadOwner");
-        if (_packed) require(_amount == _amountNFTs, "MustBuyAll");
-        _price = _price * _amountNFTs;
+        if (_packed) require(_amount == _amountNFTs, "MustRedeemAll");
+        else _price = _price * _amountNFTs;
+
+        IERC1155(_erc1155).safeTransferFrom(msg.sender, _ownerOf, _tokenId, _amountNFTs, "");
 
         uint256 fee = _price / 100;
         if (_erc20payment == address(0)) {
@@ -216,8 +218,6 @@ contract NFTMarketplaceProxy is NFTMarketplaceData {
         } else {
             IERC20(_erc20payment).transfer(msg.sender, _price - fee);
         }
-
-        IERC1155(_erc1155).safeTransferFrom(msg.sender, _ownerOf, _tokenId, _amountNFTs, "");
     }
 
     /**
