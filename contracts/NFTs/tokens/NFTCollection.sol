@@ -35,7 +35,7 @@ contract NFTCollection is ERC165, INFTCollection, IERC1155, IERC1155MetadataURI 
     // Used as the URI for all token types by relying on ID substitution, e.g. https://token-cdn-domain/{id}.json
     string private _uri;
     address private collectionFactory;
-    address public owner;
+    address private owner;
 
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
@@ -328,6 +328,10 @@ contract NFTCollection is ERC165, INFTCollection, IERC1155, IERC1155MetadataURI 
         emit TransferBatch(operator, address(0), to, ids, amounts);
 
         if (_isContract(to)) _doSafeBatchTransferAcceptanceCheck(operator, address(0), to, ids, amounts, data);
+    }
+
+    function ownerOf() external view override returns(address) {
+        return owner;
     }
 
     function transferOwnership(address _newOwner) external override onlyOwner {

@@ -45,9 +45,11 @@ contract BlizztStake is IBlizztStake {
         emit Withdraw(msg.sender, balance);
     }
 
-    function burn(address _user, uint256 _amount) external {
+    function burn(address _user, uint256 _amount) external override {
         require(msg.sender == nftMarketplace, "OnlyMarketplace");
-        balances[_user] -= _amount;
-        IBlizztToken(blizztToken).burn(_amount);
+        if (_amount > 0) {
+            balances[_user] -= _amount;
+            IBlizztToken(blizztToken).burn(_amount);
+        }
     }
 }

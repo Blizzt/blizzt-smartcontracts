@@ -34,6 +34,7 @@ contract NFTMarketplaceProxy is NFTMarketplaceData {
         address ownerOf = _decodeSignature(_params, _messageLength, _signature);
         (address _erc1155, uint256 _tokenId, uint24 _amount, uint256 _price, address _erc20payment, string memory _metadata, uint256 expirationDate) = abi.decode(_params,(address,uint256,uint24,uint256,address,string,uint256));
         require(expirationDate >= block.timestamp, "Expirated");
+        require(ownerOf == INFTCollection(_erc1155).ownerOf(), "BadOwner");
 
         INFTCollection(_erc1155).mint(msg.sender, _tokenId, _amount, _metadata);
         if (_price > 0) _pay(ownerOf, _price, _erc20payment);
@@ -52,6 +53,7 @@ contract NFTMarketplaceProxy is NFTMarketplaceData {
         require(_expirationDate >= block.timestamp, "Expirated");
         require(IERC1155(_erc1155).balanceOf(ownerOf, _tokenId) >= _amount, "BadOwner");
         require(_getUserRentedItems(ownerOf, _erc1155, _tokenId) + _amount <= _totalAmount, "MaxItemsRented");
+        require(IBlizztStake(blizztStake).balanceOf(msg.sender) > minStakedTokensForRent, "NotEnoughStakedTokens");
         uint256 rentValue = _amount * _price * _seconds;
 
         _rentERC1155(ownerOf, _erc1155, _tokenId, _amount, _seconds);
@@ -71,6 +73,7 @@ contract NFTMarketplaceProxy is NFTMarketplaceData {
         address ownerOf = _decodeSignature(_params, _messageLength, _signature);
         (address _erc1155, uint256[] memory _tokenIds, uint256[] memory _amounts, uint256 _price, address _erc20payment, uint256 _expirationDate) = abi.decode(_params,(address,uint256[],uint256[],uint256,address,uint256));
         require(_expirationDate >= block.timestamp, "Expirated");
+        require(IBlizztStake(blizztStake).balanceOf(msg.sender) > minStakedTokensForRent, "NotEnoughStakedTokens");
         for (uint i=0; i<_tokenIds.length; i++) require(IERC1155(_erc1155).balanceOf(ownerOf, _tokenIds[i]) >= _amounts[i], "BadOwner");
         uint256 rentValue = _amount * _price * _seconds;
 
@@ -89,6 +92,7 @@ contract NFTMarketplaceProxy is NFTMarketplaceData {
      * @param _owner      --> 
      */
     function returnRentedERC1155(address _erc1155, uint256[] memory _tokenIds, uint256[] memory _amounts, address _owner, address _renter) external {
+        bool returnedLate = false;
         for (uint i=0; i<_tokenIds.length; i++) {
             TokenRentInfo[] storage rentInfo = rentals[_erc1155][_tokenIds[i]][_owner];
             for (uint j=0; j<rentInfo.length; j++) {
@@ -96,7 +100,7 @@ contract NFTMarketplaceProxy is NFTMarketplaceData {
                     TokenRentInfo memory tokenRent = rentInfo[j];
                     require(tokenRent.rentExpiresAt > 0, "NoRented");
                     require(tokenRent.amount > 0, "NoRented");
-                    require(block.timestamp >= tokenRent.rentExpiresAt, "RentStillActive");
+                    if (msg.sender != tokenRent.renter) require(block.timestamp >= tokenRent.rentExpiresAt, "RentStillActive");
 
                     INFTCollection(_erc1155).safeTransferForRent(tokenRent.renter, _owner, _tokenIds[i], _amounts[i]);
                     if (rentInfo.length > 1) {
@@ -107,6 +111,10 @@ contract NFTMarketplaceProxy is NFTMarketplaceData {
                     }
                 }
             }
+        }
+
+        if (returnedLate == true) {
+            IBlizztStake(blizztStake).burn(_renter, rentTokensBurn); // TODO. Define that
         }
 
         emit TokensReturned(_erc1155, _tokenIds, _amounts, _owner);
@@ -163,9 +171,10 @@ contract NFTMarketplaceProxy is NFTMarketplaceData {
         address ownerOfFrom = _decodeSignature(_params, _messageLength, _signature);
         (address _fromERC1155, uint256 _fromTokenId, uint256 _fromAmount, address _toERC1155, uint256 _toTokenId, uint256 _toAmount, uint256 expirationDate) = abi.decode(_params,(address,uint256,uint256,address,uint256,uint256,uint256));
         require(expirationDate == 0 || expirationDate >= block.timestamp, "Expirated");
+        require(IBlizztStake(blizztStake).balanceOf(ownerOfFrom) > minStakedTokensForSwap, "UserA NotEnoughStakedTokens");
+        require(IBlizztStake(blizztStake).balanceOf(msg.sender) > minStakedTokensForSwap, "UserB NotEnoughStakedTokens");
         require(IERC1155(_fromERC1155).balanceOf(ownerOfFrom, _fromTokenId) >= _fromAmount, "BadOwner");
 
-        // TODO. Check that two users have Blizz token staked
         IERC1155(_fromERC1155).safeTransferFrom(ownerOfFrom, msg.sender, _fromTokenId, _fromAmount, "");
         IERC1155(_toERC1155).safeTransferFrom(msg.sender, ownerOfFrom, _toTokenId, _toAmount, "");
 
@@ -182,9 +191,9 @@ contract NFTMarketplaceProxy is NFTMarketplaceData {
         address ownerOfFrom = _decodeSignature(_params, _messageLength, _signature);
         (address _fromERC1155, uint256[] memory _fromTokenIds, uint256[] memory _fromAmounts, address _toERC1155, uint256[] memory _toTokenIds, uint256[] memory _toAmounts, uint256 _expirationDate) = abi.decode(_params,(address,uint256[],uint256[],address,uint256[],uint256[],uint256));
         require(_expirationDate >= block.timestamp, "Expirated");
+        require(IBlizztStake(blizztStake).balanceOf(ownerOfFrom) > minStakedTokensForSwap, "UserA NotEnoughStakedTokens");
+        require(IBlizztStake(blizztStake).balanceOf(msg.sender) > minStakedTokensForSwap, "UserB NotEnoughStakedTokens");
         for (uint i=0; i<_fromTokenIds.length; i++) require(IERC1155(_fromERC1155).balanceOf(ownerOfFrom, _fromTokenIds[i]) >= _fromAmounts[i], "BadOwner");
-
-        // TODO. Check that two users have Blizz token staked
 
         IERC1155(_fromERC1155).safeBatchTransferFrom(ownerOfFrom, msg.sender, _fromTokenIds, _fromAmounts, "");
         IERC1155(_toERC1155).safeBatchTransferFrom(msg.sender, ownerOfFrom, _toTokenIds, _toAmounts, "");
@@ -347,14 +356,19 @@ contract NFTMarketplaceProxy is NFTMarketplaceData {
 
     /** 
      * @notice Change the marketplace fees
-     * @param _minFee               --> 
-     * @param _maxFee               --> 
-     * @param _maxStakedTokens      --> 
+     * @param _minFee                   --> 
+     * @param _maxFee                   --> 
+     * @param _maxStakedTokens          --> 
+     * @param _minStakedTokensForRent   -->
+     * @param _minStakedTokensForSwap   -->
      */
-    function changeFees(uint24 _minFee, uint24 _maxFee, uint24 _maxStakedTokens) external onlyOwner {
+    function changeFees(uint24 _minFee, uint24 _maxFee, uint24 _maxStakedTokens, uint24 _minStakedTokensForRent, uint24 _minStakedTokensForSwap, uint24 _rentTokensBurn) external onlyOwner {
         minFee = _minFee;
         maxFee = _maxFee;
         maxStakedTokens = _maxStakedTokens;
+        minStakedTokensForRent = _minStakedTokensForRent;
+        minStakedTokensForSwap = _minStakedTokensForSwap;
+        rentTokensBurn = _rentTokensBurn;
     }
 
     /** 
@@ -372,5 +386,4 @@ contract NFTMarketplaceProxy is NFTMarketplaceData {
     function updateNftMarketplaceAdmin(address _newMarketplaceAdmin) external onlyOwner {
         nftMarketplaceAdmin = _newMarketplaceAdmin;
     }
-
 }

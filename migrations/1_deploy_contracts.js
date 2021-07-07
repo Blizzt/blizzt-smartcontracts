@@ -1,8 +1,6 @@
 const BlizztToken = artifacts.require("./BlizztToken.sol");
 const NFTCollectionFactory = artifacts.require("./NFTCollectionFactory.sol");
 const NFTCollection = artifacts.require("./NFTCollection.sol");
-const DummyUSDT = artifacts.require("./DummyUSDT.sol");
-const DepositVesting = artifacts.require("./DepositVesting.sol");
 const NFTMarketplace = artifacts.require("./NFTMarketplace");
 const BlizztStake = artifacts.require("./BlizztStake");
 const NFTMarketplaceAdmin = artifacts.require("./NFTMarketplaceAdmin");
@@ -30,7 +28,7 @@ async function doDeploy(deployer, network, accounts) {
 
     await nftMarketplaceAdmin.setProxy(nftMarketplaceProxy.address);
 
-    await deployer.deploy(NFTMarketplace, blizztStake.address, accounts[1], nftMarketplaceAdmin.address, 100, 250, 1000000);
+    await deployer.deploy(NFTMarketplace, blizztStake.address, accounts[1], nftMarketplaceAdmin.address, 100, 250, 1000000, 0, 0, 0);
     let nftMarketplace = await NFTMarketplace.deployed();
     console.log("NFT Marketplace deployed to:", nftMarketplace.address);
 

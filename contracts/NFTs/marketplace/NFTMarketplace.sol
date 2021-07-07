@@ -11,13 +11,16 @@ contract NFTMarketplace is NFTMarketplaceData {
 
     /**
      * @notice Constructor
-     * @param _blizztStake      --> 
-     * @param _feesWallet       --> 
-     * @param _minFee           --> 
-     * @param _maxFee           --> 
-     * @param _maxStakedTokens  --> 
+     * @param _blizztStake              --> 
+     * @param _feesWallet               --> 
+     * @param _minFee                   --> 
+     * @param _maxFee                   --> 
+     * @param _maxStakedTokens          --> 
+     * @param _minStakedTokensForRent   --> 
+     * @param _minStakedTokensForSwap   --> 
      */
-    constructor (address _blizztStake, address _feesWallet, address _nftMarketplaceAdmin, uint24 _minFee, uint24 _maxFee, uint24 _maxStakedTokens) {
+    constructor (address _blizztStake, address _feesWallet, address _nftMarketplaceAdmin, uint24 _minFee, uint24 _maxFee, uint24 _maxStakedTokens, 
+                uint24 _minStakedTokensForRent, uint24 _minStakedTokensForSwap, uint24 _rentTokensBurn) {
         owner = msg.sender;
         feesWallet = _feesWallet;
         blizztStake = _blizztStake;
@@ -25,6 +28,9 @@ contract NFTMarketplace is NFTMarketplaceData {
         minFee = _minFee;
         maxFee = _maxFee;
         maxStakedTokens = _maxStakedTokens;
+        minStakedTokensForRent = _minStakedTokensForRent;
+        minStakedTokensForSwap = _minStakedTokensForSwap;
+        rentTokensBurn = _rentTokensBurn;
     }
 
     fallback () external payable {
