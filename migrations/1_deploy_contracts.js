@@ -1,6 +1,7 @@
 const BlizztToken = artifacts.require("./BlizztToken.sol");
 const NFTCollectionFactory = artifacts.require("./NFTCollectionFactory.sol");
 const NFTCollection = artifacts.require("./NFTCollection.sol");
+const NFTMultiCollection = artifacts.require("./NFTMultiCollection.sol");
 const NFTMarketplace = artifacts.require("./NFTMarketplace");
 const BlizztStake = artifacts.require("./BlizztStake");
 const NFTMarketplaceAdmin = artifacts.require("./NFTMarketplaceAdmin");
@@ -38,7 +39,11 @@ async function doDeploy(deployer, network, accounts) {
     let nftCollectionTemplate = await NFTCollection.deployed();
     console.log("NFTCollection Template deployed to:", nftCollectionTemplate.address);
 
-    await deployer.deploy(NFTCollectionFactory, nftCollectionTemplate.address, nftMarketplace.address, blizztStake.address, 0);
+    await deployer.deploy(NFTMultiCollection);
+    let nftMultiCollectionTemplate = await NFTMultiCollection.deployed();
+    console.log("NFTMultiCollection Template deployed to:", nftMultiCollectionTemplate.address);
+
+    await deployer.deploy(NFTCollectionFactory, nftCollectionTemplate.address, nftMultiCollectionTemplate.address, nftMarketplace.address, blizztStake.address, 0);
     let nftFactory = await NFTCollectionFactory.deployed();
     console.log("NFT Factory deployed to:", nftFactory.address);
 }

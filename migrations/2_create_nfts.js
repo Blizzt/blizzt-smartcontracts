@@ -1,13 +1,10 @@
 const NFTCollectionFactory = artifacts.require("./NFTCollectionFactory.sol");
 const NFTCollection = artifacts.require("./NFTCollection.sol");
-const DummyUSDT = artifacts.require("./DummyUSDT.sol");
 const NFTMarketplace = artifacts.require("./NFTMarketplace");
 
 async function doDeploy(deployer, network, accounts) {
     let eta = Math.floor(Date.now() / 1000) + 10;
     let expirationDate = Math.floor(Date.now() / 1000) + 86400;
-
-    let dummyUSDT = await DummyUSDT.deployed();
     let nftMarketplace = await NFTMarketplace.deployed();
     let nftFactory = await NFTCollectionFactory.deployed();
     console.log("NFT Factory deployed to:", nftFactory.address);

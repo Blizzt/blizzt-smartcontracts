@@ -5,7 +5,7 @@ import '@openzeppelin/contracts/token/ERC1155/IERC1155.sol';
 import "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import "@openzeppelin/contracts/token/ERC1155/extensions/IERC1155MetadataURI.sol";
 import "@openzeppelin/contracts/utils/introspection/ERC165.sol";
-import "../../interfaces/INFTCollection.sol";
+import "../../interfaces/INFTMultiCollection.sol";
 import "../../interfaces/INFTMarketplace.sol";
 import "../../interfaces/INFTCollectionFactory.sol";
 
@@ -19,11 +19,17 @@ import "../../interfaces/INFTCollectionFactory.sol";
  */
 
 // TODO. Optimize in gas creating internal functions for duplicate code
-contract NFTCollection is ERC165, INFTCollection, IERC1155, IERC1155MetadataURI {
+contract NFTMultiCollection is ERC165, INFTMultiCollection, IERC1155, IERC1155MetadataURI {
+
+    struct NFTUserData {
+        uint24 amount;
+        uint24 index;
+        uint160 extraData;
+    }
 
     struct NFTData {
-        mapping(address => uint256) balance;
-        string metadata;
+        mapping(address => NFTUserData) balance;
+        string[] metadata;
     }
 
     // Mapping from token ID to account balances
@@ -73,7 +79,8 @@ contract NFTCollection is ERC165, INFTCollection, IERC1155, IERC1155MetadataURI 
      * actual token type ID.
      */
     function uri(uint256 _id) public view virtual override returns (string memory) {
-        string memory metadata = _balances[_id].metadata;
+        uint24 index = _balances[_id].balance[msg.sender].index;
+        string memory metadata = _balances[_id].metadata[index];
         if (bytes(metadata).length >= 0) return string(abi.encodePacked(_uri, metadata));
     
         return string(abi.encodePacked(_uri, _id));
@@ -82,7 +89,8 @@ contract NFTCollection is ERC165, INFTCollection, IERC1155, IERC1155MetadataURI 
     function uris(uint256[] memory _ids) public view virtual returns (string[] memory) {
         string[] memory metadatas = new string[](_ids.length);
         for (uint256 i=0; i<_ids.length; i++) {
-            string memory metadata = _balances[_ids[i]].metadata;
+            uint24 index = _balances[_ids[i]].balance[msg.sender].index;
+            string memory metadata = _balances[_ids[i]].metadata[index];
             if (bytes(metadata).length >= 0) metadatas[i] = string(abi.encodePacked(_uri, metadata));
             else metadatas[i] = string(abi.encodePacked(_uri, _ids[i]));
         }
@@ -98,7 +106,7 @@ contract NFTCollection is ERC165, INFTCollection, IERC1155, IERC1155MetadataURI 
      * - `account` cannot be the zero address.
      */
     function balanceOf(address account, uint256 id) public view virtual override returns (uint256) {
-        return _balances[id].balance[account];
+        return _balances[id].balance[account].amount;
     }
 
     /**
@@ -173,10 +181,10 @@ contract NFTCollection is ERC165, INFTCollection, IERC1155, IERC1155MetadataURI 
 
         _checkTokenRented(from, to, id, amount);
 
-        uint256 fromBalance = _balances[id].balance[from];
+        uint24 fromBalance = _balances[id].balance[from].amount;
         require(fromBalance >= amount, "NoFunds");
-        _balances[id].balance[from] = fromBalance - amount;
-        _balances[id].balance[to] += amount;
+        _balances[id].balance[from].amount = uint24(fromBalance - amount);
+        _balances[id].balance[to].amount += uint24(amount);
 
         emit TransferSingle(operator, from, to, id, amount);
 
@@ -196,10 +204,10 @@ contract NFTCollection is ERC165, INFTCollection, IERC1155, IERC1155MetadataURI 
         require(to != address(0), "NoZeroAddress");
         address operator = msg.sender;
 
-        uint256 fromBalance = _balances[id].balance[from];
+        uint256 fromBalance = _balances[id].balance[from].amount;
         require(fromBalance >= amount, "NoFunds");
-        _balances[id].balance[from] = fromBalance - amount;
-        _balances[id].balance[to] += amount;
+        _balances[id].balance[from].amount = uint24(fromBalance - amount);
+        _balances[id].balance[to].amount += uint24(amount);
 
         emit TransferSingle(operator, from, to, id, amount);
 
@@ -235,10 +243,10 @@ contract NFTCollection is ERC165, INFTCollection, IERC1155, IERC1155MetadataURI 
             uint256 id = ids[i];
             uint256 amount = amounts[i];
 
-            uint256 fromBalance = _balances[id].balance[from];
+            uint256 fromBalance = _balances[id].balance[from].amount;
             require(fromBalance >= amount, "InsufficientBalance");
-            _balances[id].balance[from] = fromBalance - amount;
-            _balances[id].balance[to] += amount;
+            _balances[id].balance[from].amount = uint24(fromBalance - amount);
+            _balances[id].balance[to].amount += uint24(amount);
         }
 
         emit TransferBatch(operator, from, to, ids, amounts);
@@ -246,7 +254,7 @@ contract NFTCollection is ERC165, INFTCollection, IERC1155, IERC1155MetadataURI 
         if (_isContract(to)) _doSafeBatchTransferAcceptanceCheck(operator, from, to, ids, amounts, data);
     }
 
-    function mint(address _account, uint256 _id, uint256 _amount, string memory _metadata) external override {
+    function mint(address _account, uint256 _id, uint256 _amount, string[] memory _metadata) external override {
         require(msg.sender == owner || msg.sender == INFTCollectionFactory(collectionFactory).getMarketplace(), "NoPermission");
         require(_existsId(_id) == false, "DuplicatedId");
 
@@ -259,6 +267,10 @@ contract NFTCollection is ERC165, INFTCollection, IERC1155, IERC1155MetadataURI 
         require(_existsId(_id) == false, "DuplicatedId");
 
         _mint(_account, _id, _amount, "");
+    }
+
+    function evolve(bytes memory _params, bytes memory _messageLength, bytes memory _signature) external {
+
     }
 
     /**
@@ -300,7 +312,7 @@ contract NFTCollection is ERC165, INFTCollection, IERC1155, IERC1155MetadataURI 
 
         address operator = msg.sender;
 
-        _balances[id].balance[account] += amount;
+        _balances[id].balance[account].amount += uint24(amount);
         emit TransferSingle(operator, address(0), account, id, amount);
 
         if (_isContract(account)) _doSafeTransferAcceptanceCheck(operator, address(0), account, id, amount, data);
@@ -322,7 +334,7 @@ contract NFTCollection is ERC165, INFTCollection, IERC1155, IERC1155MetadataURI 
         address operator = msg.sender;
 
         for (uint i = 0; i < ids.length; i++) {
-            _balances[ids[i]].balance[to] += amounts[i];
+            _balances[ids[i]].balance[to].amount += uint24(amounts[i]);
         }
 
         emit TransferBatch(operator, address(0), to, ids, amounts);
@@ -352,9 +364,9 @@ contract NFTCollection is ERC165, INFTCollection, IERC1155, IERC1155MetadataURI 
 
         address operator = msg.sender;
 
-        uint256 accountBalance = _balances[id].balance[account];
+        uint256 accountBalance = _balances[id].balance[account].amount;
         require(accountBalance >= amount, "NoFunds");
-        _balances[id].balance[account] = accountBalance - amount;
+        _balances[id].balance[account].amount = uint24(accountBalance - amount);
 
         emit TransferSingle(operator, account, address(0), id, amount);
     }
@@ -376,9 +388,9 @@ contract NFTCollection is ERC165, INFTCollection, IERC1155, IERC1155MetadataURI 
             uint256 id = ids[i];
             uint256 amount = amounts[i];
 
-            uint256 accountBalance = _balances[id].balance[account];
+            uint256 accountBalance = _balances[id].balance[account].amount;
             require(accountBalance >= amount, "NoFunds");
-            _balances[id].balance[account] = accountBalance - amount;
+            _balances[id].balance[account].amount = uint24(accountBalance - amount);
         }
 
         emit TransferBatch(operator, account, address(0), ids, amounts);
@@ -406,7 +418,7 @@ contract NFTCollection is ERC165, INFTCollection, IERC1155, IERC1155MetadataURI 
         view
     {
         address nftMarketplace = INFTCollectionFactory(collectionFactory).getMarketplace();
-        uint tokenAmount = _balances[id].balance[from];
+        uint tokenAmount = _balances[id].balance[from].amount;
         uint rentedAmount = INFTMarketplace(nftMarketplace).getUserRentedItems(to, address(this), id);
         require(tokenAmount - rentedAmount >= amount, "TokenRented");
     }
@@ -464,7 +476,7 @@ contract NFTCollection is ERC165, INFTCollection, IERC1155, IERC1155MetadataURI 
         return size > 0;
     }
 
-    function _existsId(uint256 id) internal view returns (bool) {
-        return (bytes(_balances[id].metadata).length > 0);
+    function _existsId(uint256 _id) internal view returns (bool) {
+        return (bytes(_balances[_id].metadata[0]).length > 0);
     }
 }

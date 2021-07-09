@@ -24,6 +24,15 @@ contract NFTMarketplaceProxy is NFTMarketplaceData {
         _;
     }
 
+    function createProject(address _erc1155, uint24 _fee) external {
+        projects[_erc1155].fee = _fee;
+    }
+
+    function cancelProject(address _erc1155) external {
+        require(INFTCollection(_erc1155).ownerOf() == msg.sender || (msg.sender == owner), "BadOwner");
+        projects[_erc1155].cancelled = true;
+    }
+
     /** 
      * @notice Mint a new ERC1155 using a previous signed message
      * @param _params         --> 
@@ -101,6 +110,7 @@ contract NFTMarketplaceProxy is NFTMarketplaceData {
                     require(tokenRent.rentExpiresAt > 0, "NoRented");
                     require(tokenRent.amount > 0, "NoRented");
                     if (msg.sender != tokenRent.renter) require(block.timestamp >= tokenRent.rentExpiresAt, "RentStillActive");
+                    if (block.timestamp - tokenRent.rentExpiresAt > 1 hours) returnedLate = true;
 
                     INFTCollection(_erc1155).safeTransferForRent(tokenRent.renter, _owner, _tokenIds[i], _amounts[i]);
                     if (rentInfo.length > 1) {
@@ -114,7 +124,7 @@ contract NFTMarketplaceProxy is NFTMarketplaceData {
         }
 
         if (returnedLate == true) {
-            IBlizztStake(blizztStake).burn(_renter, rentTokensBurn); // TODO. Define that
+            IBlizztStake(blizztStake).burn(_renter, rentTokensBurn);
         }
 
         emit TokensReturned(_erc1155, _tokenIds, _amounts, _owner);
@@ -205,7 +215,7 @@ contract NFTMarketplaceProxy is NFTMarketplaceData {
         address _ownerOf = _decodeSignature(_params, _messageLength, _signature);
         require(msg.sender != _ownerOf, "NoOwnerAllowed");
         (address _erc1155, uint256 _tokenId, uint24 _amount, uint256 _price, address _erc20payment, bool _packed, ) = abi.decode(_params,(address,uint256,uint24,uint256,address,bool,uint256));
-        require(cancelledProjects[_erc1155] == true, "NotCancelled");
+        require(projects[_erc1155].cancelled == true, "NotCancelled");
         require(IERC1155(_erc1155).balanceOf(msg.sender, _tokenId) >= _amount, "BadOwner");
         if (_packed) require(_amount == _amountNFTs, "MustRedeemAll");
         else _price = _price * _amountNFTs;

@@ -20,7 +20,7 @@ contract NFTMarketplace is NFTMarketplaceData {
      * @param _minStakedTokensForSwap   --> 
      */
     constructor (address _blizztStake, address _feesWallet, address _nftMarketplaceAdmin, uint24 _minFee, uint24 _maxFee, uint24 _maxStakedTokens, 
-                uint24 _minStakedTokensForRent, uint24 _minStakedTokensForSwap, uint24 _rentTokensBurn) {
+                 uint24 _minStakedTokensForRent, uint24 _minStakedTokensForSwap, uint24 _rentTokensBurn) {
         owner = msg.sender;
         feesWallet = _feesWallet;
         blizztStake = _blizztStake;
@@ -33,7 +33,7 @@ contract NFTMarketplace is NFTMarketplaceData {
         rentTokensBurn = _rentTokensBurn;
     }
 
-    fallback () external payable {
+    function _delegate() internal {
         address addr = INFTMarketplaceAdmin(nftMarketplaceAdmin).getProxy();
 
         assembly {
@@ -47,5 +47,13 @@ contract NFTMarketplace is NFTMarketplaceData {
             case 0 { revert(freememstart, size) }
             default { return(freememstart, size) }
         }
+    }
+
+    fallback () external payable {
+        _delegate();
+    }
+
+    receive () external payable {
+        _delegate();
     }
 }

@@ -9,6 +9,12 @@ contract NFTMarketplaceData {
         uint24 amount;
     }
 
+    struct ProjectData {
+        uint24 fee;
+        bool cancelled;
+        uint160 extraData;
+    }
+
     address internal owner;
     uint24  internal maxFee;
     address internal feesWallet;
@@ -24,5 +30,5 @@ contract NFTMarketplaceData {
     // Mapping from rents
     mapping(address => mapping (uint256 => mapping(address => TokenRentInfo[]))) internal rentals;
     mapping(uint256 => bool) internal nonces;
-    mapping(address => bool) internal cancelledProjects;
+    mapping(address => ProjectData) internal projects;
 }
