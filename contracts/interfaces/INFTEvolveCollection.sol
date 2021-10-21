@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.4;
+pragma solidity ^0.8.7;
 
-interface INFTMultiCollection {
+interface INFTEvolveCollection {
     
     function initialize(address _nftMarketplace, address _newOwner, string memory uri_) external;
     function mint(address _account, uint256 _id, uint256 _amount, string[] memory _metadata) external;

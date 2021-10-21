@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.4;
+pragma solidity ^0.8.7;
 
 import '@openzeppelin/contracts/token/ERC1155/IERC1155.sol';
 import "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import "@openzeppelin/contracts/token/ERC1155/extensions/IERC1155MetadataURI.sol";
 import "@openzeppelin/contracts/utils/introspection/ERC165.sol";
-import "../../interfaces/INFTMultiCollection.sol";
+import "../../interfaces/INFTEvolveCollection.sol";
 import "../../interfaces/INFTMarketplace.sol";
 import "../../interfaces/INFTCollectionFactory.sol";
 
@@ -19,7 +19,7 @@ import "../../interfaces/INFTCollectionFactory.sol";
  */
 
 // TODO. Optimize in gas creating internal functions for duplicate code
-contract NFTMultiCollection is ERC165, INFTMultiCollection, IERC1155, IERC1155MetadataURI {
+contract NFTEvolveCollection is ERC165, INFTEvolveCollection, IERC1155, IERC1155MetadataURI {
 
     struct NFTUserData {
         uint24 amount;

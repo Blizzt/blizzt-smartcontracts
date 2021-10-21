@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.4;
+pragma solidity ^0.8.7;
 
 contract NFTMarketplaceData {
 
@@ -26,6 +26,7 @@ contract NFTMarketplaceData {
     address internal nftMarketplaceAdmin;
     uint24  internal minStakedTokensForSwap;
     uint24  internal rentTokensBurn;
+    address internal blizztRelayer;
     
     // Mapping from rents
     mapping(address => mapping (uint256 => mapping(address => TokenRentInfo[]))) internal rentals;

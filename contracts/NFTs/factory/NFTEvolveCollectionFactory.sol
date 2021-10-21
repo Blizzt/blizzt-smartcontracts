@@ -3,13 +3,13 @@ pragma solidity ^0.8.7;
 
 import "../../interfaces/INFTCollectionFactory.sol";
 import "../../interfaces/INFTMarketplace.sol";
-import "../../interfaces/INFTCollection.sol";
+import "../../interfaces/INFTEvolveCollection.sol";
 import "../../interfaces/IBlizztStake.sol";
 import "@openzeppelin/contracts/proxy/Clones.sol";
 
-contract NFTCollectionFactory is INFTCollectionFactory {
+contract NFTEvolveCollectionFactory is INFTCollectionFactory {
 
-    address public  nftCollectionTemplate;
+    address public  nftMultiCollectionTemplate;
     address private nftMarketplace;
     address public  blizztStake;
     uint256 public  premiumRequired;
@@ -23,16 +23,16 @@ contract NFTCollectionFactory is INFTCollectionFactory {
         _;
     }
 
-    constructor (address _nftCollectionTemplate, address _nftMarketplace, address _blizztStake, uint256 _premiumRequired) {
-        nftCollectionTemplate = _nftCollectionTemplate;
+    constructor (address _nftMultiCollectionTemplate, address _nftMarketplace, address _blizztStake, uint256 _premiumRequired) {
+        nftMultiCollectionTemplate = _nftMultiCollectionTemplate;
         nftMarketplace = _nftMarketplace;
         blizztStake = _blizztStake;
         premiumRequired = _premiumRequired;
         owner = msg.sender;
     }
 
-    function updateFactoryRequirements(address _nftCollectionTemplate, address _blizztStake, uint256 _premiumRequired) external onlyOwner {
-        nftCollectionTemplate = _nftCollectionTemplate;
+    function updateFactoryRequirements(address _nftMultiCollectionTemplate, address _blizztStake, uint256 _premiumRequired) external onlyOwner {
+        nftMultiCollectionTemplate = _nftMultiCollectionTemplate;
         blizztStake = _blizztStake;
         premiumRequired = _premiumRequired;
     }
@@ -49,22 +49,22 @@ contract NFTCollectionFactory is INFTCollectionFactory {
         _createNFTCollection(_uri, msg.sender);
     }
 
-    function createNFTCollectionWithFirstItem(string memory _uri, uint256 _id, uint256 _amount, string memory _metadata) external {
+    function createNFTCollectionWithFirstItem(string memory _uri, uint256 _id, uint256 _amount, string[] memory _metadata) external {
         address nft = _createNFTCollection(_uri, address(this));
-        INFTCollection(nft).mint(msg.sender, _id, _amount, _metadata);
-        INFTCollection(nft).transferOwnership(msg.sender);
+        INFTEvolveCollection(nft).mint(msg.sender, _id, _amount, _metadata);
+        INFTEvolveCollection(nft).transferOwnership(msg.sender);
     }
 
     function createNFTFullCollection(string memory _uri, uint256[] memory _ids, uint256[] memory _amounts) external {
         require(_ids.length == _amounts.length, "WrongArrays");
         require(IBlizztStake(blizztStake).balanceOf(msg.sender) >= premiumRequired, "NoEnoughTokensPremium");
 
-        address nft = Clones.clone(nftCollectionTemplate);
-        INFTCollection(nft).initialize(address(this), address(this), _uri);
+        address nft = Clones.clone(nftMultiCollectionTemplate);
+        INFTEvolveCollection(nft).initialize(address(this), address(this), _uri);
         uint256 len = _ids.length;
-        for (uint256 i=0; i<len; i++) INFTCollection(nft).mint(msg.sender, _ids[i], _amounts[i]);
+        for (uint256 i=0; i<len; i++) INFTEvolveCollection(nft).mint(msg.sender, _ids[i], _amounts[i]);
 
-        INFTCollection(nft).transferOwnership(msg.sender);
+        INFTEvolveCollection(nft).transferOwnership(msg.sender);
     }
 
     function transferOwnership(address _newOwner) external onlyOwner {
@@ -76,8 +76,8 @@ contract NFTCollectionFactory is INFTCollectionFactory {
         // Check if the sender has the minimum token required
         require(IBlizztStake(blizztStake).balanceOf(msg.sender) >= premiumRequired, "NoEnoughTokensStaked");
 
-        address nft = Clones.clone(nftCollectionTemplate);
-        INFTCollection(nft).initialize(address(this), _owner, _uri);
+        address nft = Clones.clone(nftMultiCollectionTemplate);
+        INFTEvolveCollection(nft).initialize(address(this), _owner, _uri);
 
         emit NFTCollectionCreated(msg.sender, nft);
 

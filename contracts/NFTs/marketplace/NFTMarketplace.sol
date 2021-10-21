@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.4;
+pragma solidity ^0.8.7;
 
 /// @title Blizzt NFT Marketplace
 /// @author Jorge Gomes - <jorge@smartrights.io>
@@ -11,6 +11,7 @@ contract NFTMarketplace is NFTMarketplaceData {
 
     /**
      * @notice Constructor
+     * @param _blizztRelayer            -->
      * @param _blizztStake              --> 
      * @param _feesWallet               --> 
      * @param _minFee                   --> 
@@ -18,10 +19,12 @@ contract NFTMarketplace is NFTMarketplaceData {
      * @param _maxStakedTokens          --> 
      * @param _minStakedTokensForRent   --> 
      * @param _minStakedTokensForSwap   --> 
+     * @param _rentTokensBurn           --> 
      */
-    constructor (address _blizztStake, address _feesWallet, address _nftMarketplaceAdmin, uint24 _minFee, uint24 _maxFee, uint24 _maxStakedTokens, 
+    constructor (address _blizztRelayer, address _blizztStake, address _feesWallet, address _nftMarketplaceAdmin, uint24 _minFee, uint24 _maxFee, uint24 _maxStakedTokens, 
                  uint24 _minStakedTokensForRent, uint24 _minStakedTokensForSwap, uint24 _rentTokensBurn) {
         owner = msg.sender;
+        blizztRelayer = _blizztRelayer;
         feesWallet = _feesWallet;
         blizztStake = _blizztStake;
         nftMarketplaceAdmin = _nftMarketplaceAdmin;

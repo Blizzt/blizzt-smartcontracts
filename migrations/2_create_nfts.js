@@ -1,6 +1,7 @@
 const NFTCollectionFactory = artifacts.require("./NFTCollectionFactory.sol");
 const NFTCollection = artifacts.require("./NFTCollection.sol");
 const NFTMarketplace = artifacts.require("./NFTMarketplace");
+const DummyUSDT = artifacts.require("./DummyUSDT");
 
 async function doDeploy(deployer, network, accounts) {
     let eta = Math.floor(Date.now() / 1000) + 10;
@@ -8,6 +9,8 @@ async function doDeploy(deployer, network, accounts) {
     let nftMarketplace = await NFTMarketplace.deployed();
     let nftFactory = await NFTCollectionFactory.deployed();
     console.log("NFT Factory deployed to:", nftFactory.address);
+
+    let dummyUSDT = await DummyUSDT.deployed();
 
     let tx2 = await nftFactory.createNFTCollectionWithFirstItem("ipfs://", 10, 15, "QmaozNR7DZHQK1ZcU9p7QdrshMvXqWK6gpu5rmrkPdT3L4");
     console.log(tx2.logs[0].args.tokenAddress);
@@ -41,8 +44,6 @@ async function doDeploy(deployer, network, accounts) {
     await token.safeTransferFrom(accounts[0], accounts[2], 1, 3, "0x00");
     await token.safeTransferFrom(accounts[0], accounts[1], 2, 4, "0x00");
     await token.safeTransferFrom(accounts[0], accounts[2], 2, 5, "0x00");
-
-    /*
     
     await dummyUSDT.transfer(accounts[2], web3.utils.toWei('100000'));
     await dummyUSDT.transfer(accounts[3], web3.utils.toWei('100000'));
