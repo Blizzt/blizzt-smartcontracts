@@ -11,11 +11,15 @@ contract BlizztICO {
     address immutable private blizztToken;                      // Blizzt token address
     address immutable private usdtToken;                        // USDT token address
     address immutable private usdcToken;                        // USDC token address
+    address immutable private daiToken;                         // DAI token address
     uint256 immutable private maxICOTokens;                     // Max ICO tokens to sell
     uint256 immutable private icoStartDate;                     // ICO start date
     uint256 immutable private icoEndDate;                       // ICO end date
     uint256 immutable private priceICO;                         // ICO start date
-    AggregatorV3Interface internal priceFeed;                   // Chainlink price feeder ETH/USD
+    AggregatorV3Interface immutable private priceFeedETHUSD;    // Chainlink price feeder ETH/USD
+    AggregatorV3Interface immutable private priceFeedUSDTUSD;   // Chainlink price feeder USDT/USD
+    AggregatorV3Interface immutable private priceFeedUSDCUSD;   // Chainlink price feeder USDC/USD
+    AggregatorV3Interface immutable private priceFeedDAIUSD;    // Chainlink price feeder DAI/USD
     IUniswapV2Router02 immutable private uniswapRouter;
 
     mapping(address => uint256) private userBoughtTokens;       // Mapping to store all the buys
@@ -43,24 +47,25 @@ contract BlizztICO {
      * @param _token                --> Xifra token address
      * @param _icoStartDate         --> ICO start date
      * @param _icoEndDate           --> ICO end date
+     * @param _daiToken             --> DAI token address
      * @param _usdtToken            --> USDT token address
      * @param _usdcToken            --> USDC token address
      * @param _maxICOTokens         --> Number of tokens selling in this ICO
      * @param _priceICO             --> 
      * @param _uniswapRouter        -->
      */
-    constructor(address _wallet, address _token, uint256 _icoStartDate, uint256 _icoEndDate, address _usdtToken, address _usdcToken, uint256 _maxICOTokens, uint256 _priceICO, address _uniswapRouter) {
+    constructor(address _wallet, address _token, uint256 _icoStartDate, uint256 _icoEndDate, address _daiToken, address _usdtToken, address _usdcToken, uint256 _maxICOTokens, uint256 _priceICO, address _uniswapRouter) {
         blizztWallet = _wallet;
         blizztToken = _token;
         icoStartDate = _icoStartDate;
         icoEndDate = _icoEndDate;
+        daiToken = _daiToken;
         usdtToken = _usdtToken;
         usdcToken = _usdcToken;
         maxICOTokens = _maxICOTokens;
         priceICO = _priceICO;
-        if (_getChainId() == 1) priceFeed = AggregatorV3Interface(0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419);
-        else if (_getChainId() == 4) priceFeed = AggregatorV3Interface(0x8A753747A1Fa494EC906cE90E9f37563A8AF630e);
         uniswapRouter = IUniswapV2Router02(_uniswapRouter);
+        _setPriceFeeders();
     }
 
     /**
@@ -226,13 +231,19 @@ contract BlizztICO {
      * @return Returns the ETH amount in weis (Fixed value of 3932.4 USDs in localhost development environments)
      */
     function _getUSDETHPrice() internal view returns(uint256) {
-        int price = 0;
+        (, int price, , , ) = priceFeedETHUSD.latestRoundData();
+        
+        return uint256(price * 10**10);
+    }
 
-        if (address(priceFeed) != address(0)) {
-            (, price, , , ) = priceFeed.latestRoundData();
-        } else {
-            // For local testing
-            price = 393240000000;
+    function _getUSDStableCoinPrice(address _stableCoin) internal view returns(uint256) {
+        int price = 0;
+        if (_stableCoin == daiToken) {
+            (, price, , , ) = priceFeedDAIUSD.latestRoundData();
+        } else if (_stableCoin == usdtToken) {
+            (, price, , , ) = priceFeedUSDTUSD.latestRoundData();
+        } else if (_stableCoin == usdcToken) {
+            (, price, , , ) = priceFeedUSDCUSD.latestRoundData();
         }
 
         return uint256(price * 10**10);
@@ -250,21 +261,21 @@ contract BlizztICO {
 
     function _buyTokensWithStableCoin(uint256 _paymentAmount, address _tokenPayment) internal returns (uint256, bool) {
         require(_paymentAmount > 0, "BadPayment");
-        require(_tokenPayment == usdtToken || _tokenPayment == usdcToken, "TokenNotSupported");
+        require(_tokenPayment == daiToken || _tokenPayment == usdtToken || _tokenPayment == usdcToken, "TokenNotSupported");
         
-        uint256 amountToPay = 0;
-        uint256 paidTokens = _paymentAmount * priceICO;
+        uint256 amountToPay = _paymentAmount;
+        uint256 usdStable = _getUSDStableCoinPrice(_tokenPayment);
+        uint256 paidUSD = usdStable * _paymentAmount / 10**18;
+        uint256 paidTokens = paidUSD * priceICO;
         uint256 availableTokens = maxICOTokens - icoTokensBought;
         bool lastTokens = (availableTokens < paidTokens);
         if (lastTokens) {
-            amountToPay = availableTokens * priceICO; // Last tokens in the contract
-        } else {
-            amountToPay = paidTokens * priceICO;
+            // TODO. Calculate paidTokens y amountToPay
         }
         
         require(IERC20(_tokenPayment).transferFrom(msg.sender, address(this), amountToPay));
 
-        return (amountToPay, lastTokens);
+        return (paidTokens, lastTokens);
     }
 
     function _buyTokensWithETH() internal returns (uint256, bool) {
@@ -278,7 +289,7 @@ contract BlizztICO {
             paidTokens = availableTokens;
             payable(msg.sender).transfer(msg.value - realAmountToPay);  // Return ETHs for the tokens user couldn't buy
         }
-        emit onDebug(usdETH, paidUSD, paidTokens, availableTokens, lastTokens, 0);
+        emit onDebug(usdETH, paidUSD, paidTokens, availableTokens, lastTokens, realAmountToPay);
 
         return (paidTokens, lastTokens);
     }
@@ -298,6 +309,21 @@ contract BlizztICO {
      */
     function isICOActive() external view returns(bool) {
         return _isICOActive();
+    }
+
+    function _setPriceFeeders() internal {
+        uint256 chainId = _getChainId();
+        if (chainId == 1) {
+            priceFeedETHUSD = AggregatorV3Interface(0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419);
+            priceFeedUSDTUSD = AggregatorV3Interface(0x3E7d1eAB13ad0104d2750B8863b489D65364e32D);
+            priceFeedUSDCUSD = AggregatorV3Interface(0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6);
+            priceFeedDAIUSD = AggregatorV3Interface(0xAed0c38402a5d19df6E4c03F4E2DceD6e29c1ee9);
+        } else if (chainId == 4) {
+            priceFeedETHUSD = AggregatorV3Interface(0x8A753747A1Fa494EC906cE90E9f37563A8AF630e);
+            priceFeedUSDTUSD = AggregatorV3Interface(0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419);
+            priceFeedUSDCUSD = AggregatorV3Interface(0xa24de01df22b63d23Ebc1882a5E3d4ec0d907bFB);
+            priceFeedDAIUSD = AggregatorV3Interface(0x2bA49Aaa16E6afD2a993473cfB70Fa8559B523cF);
+        }
     }
 
     receive() external payable {

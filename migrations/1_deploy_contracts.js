@@ -10,6 +10,9 @@ const NFTEvolveCollectionFactory = artifacts.require("./NFTEvolveCollectionFacto
 const BlizztRelayer = artifacts.require("./BlizztRelayer.sol");
 const BlizztICO = artifacts.require("./BlizztICO.sol");
 const VestingContract = artifacts.require("./VestingContract.sol");
+const DAI = artifacts.require("./DAI.sol");
+const USDT = artifacts.require("./USDT.sol");
+const USDC = artifacts.require("./USDC.sol");
 
 async function doDeploy(deployer, network, accounts) {
     const UNISWAP_ROUTER = '0x625E11432F7DC36602578CBCf1C883efA2dC4834';
@@ -25,8 +28,24 @@ async function doDeploy(deployer, network, accounts) {
     let vestingContract = await VestingContract.deployed();
     console.log('VestingContract deployed:', vestingContract.address);
 
-    let usdt = '0xdAC17F958D2ee523a2206206994597C13D831ec7';
-    let usdc = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48';
+    // Deploy dummy contracts for testing
+    await deployer.deploy(DAI);
+    let daiToken = await DAI.deployed();
+    console.log('DAI deployed:', daiToken.address);
+
+    await deployer.deploy(USDT);
+    let usdtToken = await USDT.deployed();
+    console.log('USDT deployed:', usdtToken.address);
+
+    await deployer.deploy(USDC);
+    let usdcToken = await USDC.deployed();
+    console.log('USDC deployed:', usdcToken.address);
+
+    let dai = daiToken.address
+    let usdt = usdtToken.address;
+    let usdc = usdcToken.address;
+    //let usdt = '0xdAC17F958D2ee523a2206206994597C13D831ec7';
+    //let usdc = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48';
     let icoStartDate = 1634725518;
     let icoEndDate = 1734725518;
     let maxICOTokens = web3.utils.toWei('150000000');
