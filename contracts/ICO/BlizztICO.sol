@@ -3,69 +3,65 @@ pragma solidity ^0.8.7;
 
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import "../interfaces/IERC20.sol";
+import "../interfaces/IBlizztFarm.sol";
 import "../interfaces/IUniswapV2Router02.sol";
 
 contract BlizztICO {
 
     address immutable private blizztWallet;                     // Blizzt master wallet
     address immutable private blizztToken;                      // Blizzt token address
+    address immutable private blizztFarm;                       // Blizzt ICO farm
     address immutable private usdtToken;                        // USDT token address
-    address immutable private usdcToken;                        // USDC token address
-    address immutable private daiToken;                         // DAI token address
+    address immutable private ethToken;                         // ETH token address
+    address immutable private wbtcToken;                        // WBTC token address
     uint256 immutable private maxICOTokens;                     // Max ICO tokens to sell
     uint256 immutable private icoStartDate;                     // ICO start date
     uint256 immutable private icoEndDate;                       // ICO end date
-    uint256 immutable private priceICO;                         // ICO start date
-    AggregatorV3Interface immutable private priceFeedETHUSD;    // Chainlink price feeder ETH/USD
-    AggregatorV3Interface immutable private priceFeedUSDTUSD;   // Chainlink price feeder USDT/USD
-    AggregatorV3Interface immutable private priceFeedUSDCUSD;   // Chainlink price feeder USDC/USD
-    AggregatorV3Interface immutable private priceFeedDAIUSD;    // Chainlink price feeder DAI/USD
+    uint256 immutable private priceICO;                         // ICO price
+    AggregatorV3Interface private priceFeedETHUSD;              // Chainlink price feeder ETH/USD
+    AggregatorV3Interface private priceFeedMATICUSD;            // Chainlink price feeder MATIC/USD
+    AggregatorV3Interface private priceFeedWBTCUSD;             // Chainlink price feeder WBTC/USD
     IUniswapV2Router02 immutable private uniswapRouter;
-
-    mapping(address => uint256) private userBoughtTokens;       // Mapping to store all the buys
-    mapping(address => uint256) private userWithdrawTokens;     // Mapping to store the user tokens withdraw
 
     uint256 public icoTokensBought;                             // Tokens sold
     uint256 public tokenListingDate;                            // Token listing date
 
     bool private icoFinished;
     uint32 internal constant _1_MONTH_IN_SECONDS = 2592000;
-    uint32 internal constant _3_MONTHS_IN_SECONDS = 3 * _1_MONTH_IN_SECONDS;
-    uint32 internal constant _6_MONTHS_IN_SECONDS = 6 * _1_MONTH_IN_SECONDS;
-    uint32 internal constant _9_MONTHS_IN_SECONDS = 9 * _1_MONTH_IN_SECONDS;
 
     event onTokensBought(address _buyer, uint256 _tokens, uint256 _paymentAmount, address _tokenPayment);
-    event onWithdrawICOFunds(uint256 _usdtBalance, uint256 _usdcBalance, uint256 _ethbalance);
+    event onWithdrawICOFunds(uint256 _maticbalance, uint256 _ethBalance, uint256 _usdtBalance, uint256 _wbtcBalance);
     event onICOFinished(uint256 _date);
     event onTokenListed(uint256 _ethOnUniswap, uint256 _tokensOnUniswap, uint256 _date);
 
-    event onDebug(uint256 usdETH, uint256 paidUSD, uint256 paidTokens, uint256 availableTokens, bool lastTokens, uint256 amountToPay);
-
     /**
      * @notice Constructor
-     * @param _wallet               --> Xifra master wallet
-     * @param _token                --> Xifra token address
+     * @param _wallet               --> Blizzt master wallet
+     * @param _token                --> Blizzt token address
      * @param _icoStartDate         --> ICO start date
      * @param _icoEndDate           --> ICO end date
-     * @param _daiToken             --> DAI token address
      * @param _usdtToken            --> USDT token address
-     * @param _usdcToken            --> USDC token address
+     * @param _ethToken             --> ETH token address
+     * @param _wbtcToken            --> WBTC token address
      * @param _maxICOTokens         --> Number of tokens selling in this ICO
      * @param _priceICO             --> 
      * @param _uniswapRouter        -->
      */
-    constructor(address _wallet, address _token, uint256 _icoStartDate, uint256 _icoEndDate, address _daiToken, address _usdtToken, address _usdcToken, uint256 _maxICOTokens, uint256 _priceICO, address _uniswapRouter) {
+    constructor(address _wallet, address _token, address _farm, uint256 _icoStartDate, uint256 _icoEndDate, address _usdtToken, address _ethToken, address _wbtcToken, uint256 _maxICOTokens, uint256 _priceICO, address _uniswapRouter) {
         blizztWallet = _wallet;
         blizztToken = _token;
+        blizztFarm = _farm;
         icoStartDate = _icoStartDate;
         icoEndDate = _icoEndDate;
-        daiToken = _daiToken;
         usdtToken = _usdtToken;
-        usdcToken = _usdcToken;
+        ethToken = _ethToken;
+        wbtcToken = _wbtcToken;
         maxICOTokens = _maxICOTokens;
         priceICO = _priceICO;
         uniswapRouter = IUniswapV2Router02(_uniswapRouter);
         _setPriceFeeders();
+
+        IERC20(_token).approve(_farm, _maxICOTokens);
     }
 
     /**
@@ -77,21 +73,22 @@ contract BlizztICO {
         require(_isICOActive() == true, "ICONotActive");
 
         uint256 tokensBought;
+        uint256 paid;
 
         if (msg.value == 0) {
             // Stable coin payment
-            (tokensBought, icoFinished) = _buyTokensWithStableCoin(_paymentAmount, _tokenPayment);
+            (tokensBought, paid, icoFinished) = _buyTokensWithTokens(_paymentAmount, _tokenPayment);
 
         } else {
-            // ETH Payment
-            (tokensBought, icoFinished) = _buyTokensWithETH();
+            // MATIC Payment
+            (tokensBought, paid, icoFinished) = _buyTokensWithMATIC();
         }
 
-        // Add tokens to the user vesting
-        userBoughtTokens[msg.sender] += tokensBought;
+        // Send the tokens to the farm contract
+        IBlizztFarm(blizztFarm).deposit(msg.sender, tokensBought);
         icoTokensBought += tokensBought;
         
-        //emit onTokensBought(msg.sender, tokensBought, _paymentAmount, _tokenPayment);
+        emit onTokensBought(msg.sender, tokensBought, paid, _tokenPayment);
 
         if (icoFinished) emit onICOFinished(block.timestamp);
     }
@@ -102,16 +99,19 @@ contract BlizztICO {
     function withdrawICOFunds() external {
         require(_isICOActive() == false, "ICONotActive");
         
+        uint256 ethBalance = IERC20(ethToken).balanceOf(address(this));
+        require(IERC20(ethToken).transfer(blizztWallet, ethBalance));
+
         uint256 usdtBalance = IERC20(usdtToken).balanceOf(address(this));
         require(IERC20(usdtToken).transfer(blizztWallet, usdtBalance));
 
-        uint256 usdcBalance = IERC20(usdcToken).balanceOf(address(this));
-        require(IERC20(usdcToken).transfer(blizztWallet, usdcBalance));
+        uint256 wbtcBalance = IERC20(wbtcToken).balanceOf(address(this));
+        require(IERC20(wbtcToken).transfer(blizztWallet, wbtcBalance));
 
-        uint256 ethbalance = address(this).balance;
-        payable(blizztWallet).transfer(ethbalance);
+        uint256 maticbalance = address(this).balance;
+        payable(blizztWallet).transfer(maticbalance);
 
-        emit onWithdrawICOFunds(usdtBalance, usdcBalance, ethbalance);
+        emit onWithdrawICOFunds(maticbalance, ethBalance, usdtBalance, wbtcBalance);
     }
 
     /**
@@ -121,17 +121,26 @@ contract BlizztICO {
     function listTokenInUniswapAndStake() external {
         require(icoFinished, "all rounds must have ended");
         require(tokenListingDate == 0, "the bonus offering and uniswap paring can only be done once per ISO");
-                   
-        uint256 unsoldSupply = maxICOTokens - icoTokensBought;
         
         (uint256 ethOnUniswap, uint256 tokensOnUniswap) = _createUniswapPair(); 
         
         tokenListingDate = block.timestamp;
         payable(blizztWallet).transfer(address(this).balance);
         
-        //_distribute(unsoldSupply + exceededBonus + exceededUniswapAmount);
+        _setupFarm();
         
         emit onTokenListed(ethOnUniswap, tokensOnUniswap, block.timestamp);
+    }
+
+    function _convertUniswapToStableCoin(uint256 _amount, address _token) internal {
+
+    }
+
+    function _setupFarm() internal {
+        uint256 balance = IERC20(blizztToken).balanceOf(address(this));
+        IBlizztFarm(blizztFarm).fund(balance);
+        
+        IBlizztFarm(blizztFarm).initialSetup(0, block.number, 0);
     }
 
     /**
@@ -139,15 +148,17 @@ contract BlizztICO {
     * Returns the uniswap token leftovers.
     */  
     function _createUniswapPair() internal returns (uint256, uint256) {
-        uint256 ethOnUniswap = address(this).balance / 3;
-        uint256 ETHUSDPrice = _getUSDETHPrice();
-        uint256 ethValue = ethOnUniswap * ETHUSDPrice / (10 ** 18);
+        _convertUniswapToStableCoin(IERC20(usdtToken).balanceOf(address(this)), usdtToken);
+        _convertUniswapToStableCoin(IERC20(wbtcToken).balanceOf(address(this)), wbtcToken);
+        _convertUniswapToStableCoin(IERC20(ethToken).balanceOf(address(this)), ethToken);
+        
+        uint256 maticOnUniswap = address(this).balance / 3;
         uint256 tokenListingPrice = 10000;    // 0.01$ per token
-        uint256 tokensOnUniswap = ethOnUniswap * tokenListingPrice;
+        uint256 tokensOnUniswap = maticOnUniswap * tokenListingPrice;
 
         IERC20(blizztToken).approve(address(uniswapRouter), tokensOnUniswap);
       
-        uniswapRouter.addLiquidityETH{value: ethOnUniswap}(
+        uniswapRouter.addLiquidityETH{value: maticOnUniswap}(
             blizztToken,
             tokensOnUniswap,
             0,
@@ -156,7 +167,7 @@ contract BlizztICO {
             block.timestamp
         );
 
-        return (ethOnUniswap, tokensOnUniswap);
+        return (maticOnUniswap, tokensOnUniswap);
     }
 
     /**
@@ -165,85 +176,59 @@ contract BlizztICO {
      * @return Returns the user token balance in wei units
      */
     function getUserBoughtTokens(address _user) external view returns(uint256) {
-        return userBoughtTokens[_user];
-    }
-
-    /**
-     * @notice Returns the number of tokens and user has withdrawn
-     * @param _user --> User account
-     * @return Returns the user token withdrawns in wei units
-     */
-    function getUserWithdrawnTokens(address _user) external view returns(uint256) {
-        return userWithdrawTokens[_user];
+        return IBlizztFarm(blizztFarm).deposited(_user);
     }
 
     /**
      * @notice Returns the crypto numbers in the ICO
      * @return blizzt Returns the Blizzt tokens balance in the contract
+     * @return matic Returns the MATICs balance in the contract
      * @return eth Returns the ETHs balance in the contract
      * @return usdt Returns the USDTs balance in the contract
-     * @return usdc Returns the USDCs balance in the contract
+     * @return wbtc Returns the WBTCs balance in the contract
      */
-    function getICOData() external view returns(uint256 blizzt, uint256 eth, uint256 usdt, uint256 usdc) {
+    function getICOData() external view returns(uint256 blizzt, uint256 matic, uint256 eth, uint256 usdt, uint256 wbtc) {
         blizzt = IERC20(blizztToken).balanceOf(address(this));
         usdt = IERC20(usdtToken).balanceOf(address(this));
-        usdc = IERC20(usdcToken).balanceOf(address(this));
-        eth = address(this).balance;
-    }
-
-    /**
-     * @notice Traslate a payment in USD to ETHs
-     * @param _paymentAmount --> Payment amount in USD
-     * @return Returns the ETH amount in weis
-     */
-    function calculateETHPayment(uint256 _paymentAmount) external view returns(uint256) {
-        uint256 usdETH = _getUSDETHPrice();
-        return (_paymentAmount * 10 ** 18) / usdETH;
-    }
-
-    /**
-     * @notice Get the vesting unlock dates
-     * @param _period --> There are 4 periods (0,1,2,3)
-     * @return _date Returns the date in UnixDateTime UTC format
-     */
-    function getVestingDate(uint256 _period) external view returns(uint256 _date) {
-        if (_period == 0) {
-            _date = tokenListingDate;
-        } else if (_period == 1) {
-            _date = tokenListingDate + _3_MONTHS_IN_SECONDS;
-        } else if (_period == 2) {
-            _date = tokenListingDate + _6_MONTHS_IN_SECONDS;
-        } else if (_period == 3) {
-            _date = tokenListingDate + _9_MONTHS_IN_SECONDS;
-        }
+        wbtc = IERC20(wbtcToken).balanceOf(address(this));
+        eth = IERC20(ethToken).balanceOf(address(this));
+        matic = address(this).balance;
     }
 
     /**
      * @notice Public function that returns ETHUSD par
      * @return Returns the how much USDs are in 1 ETH in weis
      */
-    function getUSDETHPrice() external view returns(uint256) {
-        return _getUSDETHPrice();
+    function getUSDMATICPrice() external view returns(uint256) {
+        return _getUSDMATICPrice();
+    }
+
+    /**
+     * @notice Public function that returns Token/USD par
+     * @return Returns the how much USDs are in 1 Token in weis
+     */
+    function getUSDTokenPrice(address _token) external view returns(uint256) {
+        return _getUSDTokenPrice(_token);
     }
 
     /**
      * @notice Uses Chainlink to query the USDETH price
      * @return Returns the ETH amount in weis (Fixed value of 3932.4 USDs in localhost development environments)
      */
-    function _getUSDETHPrice() internal view returns(uint256) {
-        (, int price, , , ) = priceFeedETHUSD.latestRoundData();
+    function _getUSDMATICPrice() internal view returns(uint256) {
+        (, int price, , , ) = priceFeedMATICUSD.latestRoundData();
         
         return uint256(price * 10**10);
     }
 
-    function _getUSDStableCoinPrice(address _stableCoin) internal view returns(uint256) {
+    function _getUSDTokenPrice(address _token) internal view returns(uint256) {
         int price = 0;
-        if (_stableCoin == daiToken) {
-            (, price, , , ) = priceFeedDAIUSD.latestRoundData();
-        } else if (_stableCoin == usdtToken) {
-            (, price, , , ) = priceFeedUSDTUSD.latestRoundData();
-        } else if (_stableCoin == usdcToken) {
-            (, price, , , ) = priceFeedUSDCUSD.latestRoundData();
+        if (_token == ethToken) {
+            (, price, , , ) = priceFeedETHUSD.latestRoundData();
+        } else if (_token == usdtToken) {
+            price = 100000000;
+        } else if (_token == wbtcToken) {
+            (, price, , , ) = priceFeedWBTCUSD.latestRoundData();
         }
 
         return uint256(price * 10**10);
@@ -259,39 +244,41 @@ contract BlizztICO {
         return chainId;
     }
 
-    function _buyTokensWithStableCoin(uint256 _paymentAmount, address _tokenPayment) internal returns (uint256, bool) {
+    function _buyTokensWithTokens(uint256 _paymentAmount, address _tokenPayment) internal returns (uint256, uint256, bool) {
         require(_paymentAmount > 0, "BadPayment");
-        require(_tokenPayment == daiToken || _tokenPayment == usdtToken || _tokenPayment == usdcToken, "TokenNotSupported");
+        require(_tokenPayment == ethToken || _tokenPayment == usdtToken || _tokenPayment == wbtcToken, "TokenNotSupported");
         
         uint256 amountToPay = _paymentAmount;
-        uint256 usdStable = _getUSDStableCoinPrice(_tokenPayment);
-        uint256 paidUSD = usdStable * _paymentAmount / 10**18;
+        uint256 tokenUSDs = _getUSDTokenPrice(_tokenPayment);
+        uint256 paidUSD = tokenUSDs * _paymentAmount / 10**18;
         uint256 paidTokens = paidUSD * priceICO;
         uint256 availableTokens = maxICOTokens - icoTokensBought;
         bool lastTokens = (availableTokens < paidTokens);
         if (lastTokens) {
-            // TODO. Calculate paidTokens y amountToPay
+            paidUSD = availableTokens * paidUSD / paidTokens;
+            amountToPay = paidUSD * tokenUSDs / 10 ** 18;
+            paidTokens = availableTokens;
         }
         
         require(IERC20(_tokenPayment).transferFrom(msg.sender, address(this), amountToPay));
 
-        return (paidTokens, lastTokens);
+        return (paidTokens, amountToPay, lastTokens);
     }
 
-    function _buyTokensWithETH() internal returns (uint256, bool) {
-        uint256 usdETH = _getUSDETHPrice();
+    function _buyTokensWithMATIC() internal returns (uint256, uint256, bool) {
+        uint256 usdETH = _getUSDMATICPrice();
+        uint256 amountToPay = msg.value;
         uint256 paidUSD = msg.value * usdETH / 10**18;
         uint256 paidTokens = paidUSD * priceICO;
         uint256 availableTokens = maxICOTokens - icoTokensBought;
         bool lastTokens = (availableTokens < paidTokens);
         if (lastTokens) {
-            uint256 realAmountToPay = msg.value * availableTokens / paidTokens;
+            amountToPay = msg.value * availableTokens / paidTokens;
             paidTokens = availableTokens;
-            payable(msg.sender).transfer(msg.value - realAmountToPay);  // Return ETHs for the tokens user couldn't buy
+            payable(msg.sender).transfer(msg.value - (msg.value - amountToPay));  // Return ETHs for the tokens user couldn't buy
         }
-        emit onDebug(usdETH, paidUSD, paidTokens, availableTokens, lastTokens, realAmountToPay);
 
-        return (paidTokens, lastTokens);
+        return (paidTokens, amountToPay, lastTokens);
     }
 
     /**
@@ -315,26 +302,25 @@ contract BlizztICO {
         uint256 chainId = _getChainId();
         if (chainId == 1) {
             priceFeedETHUSD = AggregatorV3Interface(0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419);
-            priceFeedUSDTUSD = AggregatorV3Interface(0x3E7d1eAB13ad0104d2750B8863b489D65364e32D);
-            priceFeedUSDCUSD = AggregatorV3Interface(0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6);
-            priceFeedDAIUSD = AggregatorV3Interface(0xAed0c38402a5d19df6E4c03F4E2DceD6e29c1ee9);
+            priceFeedMATICUSD = AggregatorV3Interface(0x7794ee502922e2b723432DDD852B3C30A911F021);
+            priceFeedWBTCUSD = AggregatorV3Interface(0xF4030086522a5bEEa4988F8cA5B36dbC97BeE88c);
         } else if (chainId == 4) {
             priceFeedETHUSD = AggregatorV3Interface(0x8A753747A1Fa494EC906cE90E9f37563A8AF630e);
-            priceFeedUSDTUSD = AggregatorV3Interface(0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419);
-            priceFeedUSDCUSD = AggregatorV3Interface(0xa24de01df22b63d23Ebc1882a5E3d4ec0d907bFB);
-            priceFeedDAIUSD = AggregatorV3Interface(0x2bA49Aaa16E6afD2a993473cfB70Fa8559B523cF);
+            priceFeedMATICUSD = AggregatorV3Interface(0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419);
+            priceFeedWBTCUSD = AggregatorV3Interface(0xa24de01df22b63d23Ebc1882a5E3d4ec0d907bFB);
         }
     }
 
     receive() external payable {
         // Call function buy if someone sends directly ethers to the contract
         uint256 tokensBought;
-        (tokensBought, icoFinished) = _buyTokensWithETH();
+        uint256 paid;
+        (tokensBought, paid, icoFinished) = _buyTokensWithMATIC();
 
         // TODO. Send tokens to the vesting contract
         IERC20(blizztToken).transfer(msg.sender, tokensBought);
         
-        emit onTokensBought(msg.sender, tokensBought, msg.value, 0x0000000000000000000000000000000000000000);
+        emit onTokensBought(msg.sender, tokensBought, paid, 0x0000000000000000000000000000000000000000);
 
         if (icoFinished) emit onICOFinished(block.timestamp);
     }

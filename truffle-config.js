@@ -70,6 +70,13 @@ module.exports = {
       timeoutBlocks: 200,
       skipDryRun: true
     },
+    mumbai: {
+      provider: () => new HDWalletProvider(mnemonic, 'https://rpc-mainnet.matic.network'),
+      network_id: 80001,
+      confirmations: 2,
+      timeoutBlocks: 200,
+      skipDryRun: true
+    },
     xDai: {
       provider: () => new HDWalletProvider(mnemonic, `https://dai.poa.network`),
       network_id: 100, // xDAI id

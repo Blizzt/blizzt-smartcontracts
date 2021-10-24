@@ -9,24 +9,20 @@ const NFTCollectionFactory = artifacts.require("./NFTCollectionFactory.sol");
 const NFTEvolveCollectionFactory = artifacts.require("./NFTEvolveCollectionFactory.sol");
 const BlizztRelayer = artifacts.require("./BlizztRelayer.sol");
 const BlizztICO = artifacts.require("./BlizztICO.sol");
-const VestingContract = artifacts.require("./VestingContract.sol");
 const DAI = artifacts.require("./DAI.sol");
 const USDT = artifacts.require("./USDT.sol");
 const USDC = artifacts.require("./USDC.sol");
+const BlizztFarm = artifacts.require("./BlizztFarm.sol");
 
 async function doDeploy(deployer, network, accounts) {
-    const UNISWAP_ROUTER = '0x625E11432F7DC36602578CBCf1C883efA2dC4834';
-    const WALLET = accounts[0];
-
     // Deploy the BlizztToken ERC20
     await deployer.deploy(BlizztToken);
     let blizztToken = await BlizztToken.deployed();
     console.log('BlizztToken deployed:', blizztToken.address);
 
-    // Deploy the Vesting Contract
-    await deployer.deploy(VestingContract);
-    let vestingContract = await VestingContract.deployed();
-    console.log('VestingContract deployed:', vestingContract.address);
+    await deployer.deploy(BlizztFarm);
+    let blizztFarm = await BlizztFarm.deployed();
+    console.log('BlizztFarm deployed:', blizztFarm.address);
 
     // Deploy dummy contracts for testing
     await deployer.deploy(DAI);
@@ -58,6 +54,7 @@ async function doDeploy(deployer, network, accounts) {
         blizztToken.address,
         icoStartDate,
         icoEndDate,
+        dai,
         usdt,
         usdc,
         maxICOTokens,
@@ -66,57 +63,6 @@ async function doDeploy(deployer, network, accounts) {
     
     let blizztICO = await BlizztICO.deployed();
     console.log('BlizztICO deployed:', blizztICO.address);
-
-    try {
-        const txICO = await blizztICO.buy(0, '0x0000000000000000000000000000000000000000', {from: accounts[1], value: web3.utils.toWei('2')});
-        console.log(txICO.logs[0].args.usdETH.toString());
-        console.log(txICO.logs[0].args.paidUSD.toString());
-        console.log(txICO.logs[0].args.paidTokens.toString());
-        console.log(txICO.logs[0].args.availableTokens.toString());
-        console.log(txICO.logs[0].args.lastTokens);
-        console.log(txICO.logs[0].args.amountToPay.toString());
-    } catch(e) {
-        console.log(e);
-    }
-
-    try {
-        const txICO2 = await blizztICO.buy(0, '0x0000000000000000000000000000000000000000', {from: accounts[2], value: web3.utils.toWei('2')});
-        console.log(txICO2.logs[0].args.usdETH.toString());
-        console.log(txICO2.logs[0].args.paidUSD.toString());
-        console.log(txICO2.logs[0].args.paidTokens.toString());
-        console.log(txICO2.logs[0].args.availableTokens.toString());
-        console.log(txICO2.logs[0].args.lastTokens);
-        console.log(txICO2.logs[0].args.amountToPay.toString());
-    } catch(e) {
-        console.log(e);
-    }
-
-    try {
-        const txICO3 = await blizztICO.buy(0, '0x0000000000000000000000000000000000000000', {from: accounts[3], value: web3.utils.toWei('2')});
-        console.log(txICO3.logs[0].args.usdETH.toString());
-        console.log(txICO3.logs[0].args.paidUSD.toString());
-        console.log(txICO3.logs[0].args.paidTokens.toString());
-        console.log(txICO3.logs[0].args.availableTokens.toString());
-        console.log(txICO3.logs[0].args.lastTokens);
-        console.log(txICO3.logs[0].args.amountToPay.toString());
-    } catch(e) {
-        console.log(e);
-    }
-
-    const tokens1 = await blizztICO.getUserBoughtTokens(accounts[1]);
-    console.log('TOKENS BOUGHT1: ', web3.utils.fromWei(tokens1));
-
-    const tokens2 = await blizztICO.getUserBoughtTokens(accounts[2]);
-    console.log('TOKENS BOUGHT2: ', web3.utils.fromWei(tokens2));
-
-    const tokens3 = await blizztICO.getUserBoughtTokens(accounts[3]);
-    console.log('TOKENS BOUGHT3: ', web3.utils.fromWei(tokens3));
-
-    await blizztToken.transfer(blizztICO.address, web3.utils.toWei('200000000'));
-
-    console.log('UNISWAP LISTING');
-    const txUniswap = await blizztICO.listTokenInUniswapAndStake();
-    console.log(txUniswap.logs);
 
     // Deploy the Stake contract
     await deployer.deploy(BlizztStake, blizztToken.address);
