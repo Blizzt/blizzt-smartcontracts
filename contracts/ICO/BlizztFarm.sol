@@ -77,13 +77,13 @@ contract BlizztFarm is IBlizztFarm, ReentrancyGuard, Ownable {
         });
     }
 
-    function initialSetup(uint256 _rewardPerBlock, uint256 _startBlock, uint256 _amount) external override onlyOwner {
+    function initialSetup(uint256 _startBlock, uint256 _numBlocks) external override onlyOwner {
         require(startBlock == 0, "Initalized yet");
 
-        rewardPerBlock = _rewardPerBlock;
         startBlock = _startBlock;
-        erc20.safeTransferFrom(address(msg.sender), address(this), _amount);
-        endBlock += _amount.div(rewardPerBlock);
+        uint256 amount = erc20.balanceOf(address(this));
+        rewardPerBlock = amount / _numBlocks;
+        endBlock = _startBlock + _numBlocks;
     }
 
     // Fund the farm, increase the end block
@@ -96,11 +96,11 @@ contract BlizztFarm is IBlizztFarm, ReentrancyGuard, Ownable {
 
     // Add a new lp to the pool. Can only be called by the owner.
     // DO NOT add the same LP token more than once. Rewards will be messed up if you do.
-    function add(uint256 _allocPoint, IERC20 _lpToken) public onlyOwner {
+    function add(uint256 _allocPoint, address _lpToken) external override onlyOwner {
         uint256 lastRewardBlock = block.number > startBlock ? block.number : startBlock;
         totalAllocPoint = totalAllocPoint.add(_allocPoint);
         poolInfo = PoolInfo({
-            lpToken: _lpToken,
+            lpToken: IERC20(_lpToken),
             allocPoint: _allocPoint,
             lastRewardBlock: lastRewardBlock,
             accERC20PerShare: 0

@@ -27,7 +27,7 @@ contract BlizztICO {
     uint256 public tokenListingDate;                            // Token listing date
 
     bool private icoFinished;
-    uint32 internal constant _1_MONTH_IN_SECONDS = 2592000;
+    uint32 internal constant _1_YEAR_BLOCKS = 2300000;          // Calculated with an average of 6400 blocks/day
 
     event onTokensBought(address _buyer, uint256 _tokens, uint256 _paymentAmount, address _tokenPayment);
     event onWithdrawICOFunds(uint256 _maticbalance, uint256 _ethBalance, uint256 _usdtBalance, uint256 _wbtcBalance);
@@ -132,15 +132,15 @@ contract BlizztICO {
         emit onTokenListed(ethOnUniswap, tokensOnUniswap, block.timestamp);
     }
 
-    function _convertUniswapToStableCoin(uint256 _amount, address _token) internal {
+    function _convertUniswapToMATIC(uint256 _amount, address _token) internal {
 
     }
 
     function _setupFarm() internal {
         uint256 balance = IERC20(blizztToken).balanceOf(address(this));
+        IBlizztFarm(blizztFarm).initialSetup(block.number, _1_YEAR_BLOCKS);
+        IBlizztFarm(blizztFarm).add(1, blizztToken);
         IBlizztFarm(blizztFarm).fund(balance);
-        
-        IBlizztFarm(blizztFarm).initialSetup(0, block.number, 0);
     }
 
     /**
@@ -148,9 +148,9 @@ contract BlizztICO {
     * Returns the uniswap token leftovers.
     */  
     function _createUniswapPair() internal returns (uint256, uint256) {
-        _convertUniswapToStableCoin(IERC20(usdtToken).balanceOf(address(this)), usdtToken);
-        _convertUniswapToStableCoin(IERC20(wbtcToken).balanceOf(address(this)), wbtcToken);
-        _convertUniswapToStableCoin(IERC20(ethToken).balanceOf(address(this)), ethToken);
+        _convertUniswapToMATIC(IERC20(usdtToken).balanceOf(address(this)), usdtToken);
+        _convertUniswapToMATIC(IERC20(wbtcToken).balanceOf(address(this)), wbtcToken);
+        _convertUniswapToMATIC(IERC20(ethToken).balanceOf(address(this)), ethToken);
         
         uint256 maticOnUniswap = address(this).balance / 3;
         uint256 tokenListingPrice = 10000;    // 0.01$ per token
@@ -256,26 +256,30 @@ contract BlizztICO {
         bool lastTokens = (availableTokens < paidTokens);
         if (lastTokens) {
             paidUSD = availableTokens * paidUSD / paidTokens;
-            amountToPay = paidUSD * tokenUSDs / 10 ** 18;
             paidTokens = availableTokens;
+            amountToPay = paidUSD * 10 ** 18 / tokenUSDs;
         }
-        
+       
         require(IERC20(_tokenPayment).transferFrom(msg.sender, address(this), amountToPay));
 
         return (paidTokens, amountToPay, lastTokens);
     }
 
     function _buyTokensWithMATIC() internal returns (uint256, uint256, bool) {
-        uint256 usdETH = _getUSDMATICPrice();
+        uint256 usdETH;
+        if (_getChainId() == 1) usdETH = _getUSDTokenPrice(ethToken);
+        else usdETH = _getUSDMATICPrice();
         uint256 amountToPay = msg.value;
         uint256 paidUSD = msg.value * usdETH / 10**18;
         uint256 paidTokens = paidUSD * priceICO;
         uint256 availableTokens = maxICOTokens - icoTokensBought;
         bool lastTokens = (availableTokens < paidTokens);
         if (lastTokens) {
-            amountToPay = msg.value * availableTokens / paidTokens;
+            paidUSD = availableTokens * paidUSD / paidTokens;
             paidTokens = availableTokens;
-            payable(msg.sender).transfer(msg.value - (msg.value - amountToPay));  // Return ETHs for the tokens user couldn't buy
+            amountToPay = paidUSD * 10 ** 18 / usdETH;
+            
+            payable(msg.sender).transfer(msg.value - amountToPay);  // Return ETHs for the tokens user couldn't buy
         }
 
         return (paidTokens, amountToPay, lastTokens);
