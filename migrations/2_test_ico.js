@@ -4,6 +4,7 @@ const BlizztFarm = artifacts.require("./BlizztFarm.sol");
 const USDTToken = artifacts.require("./USDTToken.sol");
 const WETHToken = artifacts.require("./WETHToken.sol");
 const WBTCToken = artifacts.require("./WBTCToken.sol");
+const Uniswap = artifacts.require("./Uniswap.sol");
 
 async function doDeploy(deployer, network, accounts) {
 
@@ -22,12 +23,24 @@ async function doDeploy(deployer, network, accounts) {
     let blizztFarm = await BlizztFarm.deployed();
     console.log('BlizztFarm deployed:', blizztFarm.address);
 
-    let usdt = usdtToken.address;
-    let wbtc = wbtcToken.address
-  
     let blizztICO = await BlizztICO.deployed();
     console.log('BlizztICO deployed:', blizztICO.address);
 
+    let usdt = usdtToken.address;
+    let wbtc = wbtcToken.address;
+
+    // Create the uniswap test pools
+    let uniswapRouter = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D';
+    await deployer.deploy(Uniswap, uniswapRouter);
+    let uniswap = await Uniswap.deployed();
+    console.log('Uniswap deployed:', uniswap.address);
+
+    await wbtcToken.approve(uniswap.address, web3.utils.toWei('10000000'));
+    await uniswap.createPool(wbtc, { value: web3.utils.toWei('20') });
+    await usdtToken.approve(uniswap.address, web3.utils.toWei('10000000'));
+    await uniswap.createPool(usdt, { value: web3.utils.toWei('20') });
+    console.log('Pools deployed');
+    
     // Buy all the ICO
     await usdtToken.transfer(accounts[1], web3.utils.toWei('100000'));
     await wbtcToken.transfer(accounts[3], web3.utils.toWei('1'));
@@ -69,7 +82,7 @@ async function doDeploy(deployer, network, accounts) {
 
     const tokens3 = await blizztICO.getUserBoughtTokens(accounts[3]);
     console.log('TOKENS BOUGHT3: ', web3.utils.fromWei(tokens3));
-    const balance3 = await await wbtcToken.balanceOf(accounts[3]);
+    const balance3 = await wbtcToken.balanceOf(accounts[3]);
     console.log('BALANCE 3: ', web3.utils.fromWei(balance3));
 
     // TODO. How to automatize this action?

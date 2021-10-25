@@ -111,23 +111,24 @@ contract BlizztICO {
         emit onTokenListed(ethOnUniswap, tokensOnUniswap, block.timestamp);
     }
 
-    function _convertUniswapToMATIC(uint256 _amount, address _token) internal {
+    function _convertUniswapToMATIC(address _token) internal {
         address[] memory path = new address[](2);
         path[0] = _token;
         path[1] = uniswapRouter.WETH();
 
-        IERC20(_token).approve(address(uniswapRouter), _amount);
+        uint256 tokenBalance = IERC20(_token).balanceOf(address(this));
+        if (tokenBalance > 0) {
+            IERC20(_token).approve(address(uniswapRouter), tokenBalance);
 
-        // ERROR. No existe liquidez para este par en Uniswap y por eso falla el SmartContract aqui
-        /*
-        uniswapRouter.swapExactTokensForETH(
-            _amount,
-            0,  // TODO. Protect against flashloans (only call from an account, not an smartcontract)
-            path,
-            address(this),
-            block.timestamp
-        );
-        */
+            // ERROR. No existe liquidez para este par en Uniswap y por eso falla el SmartContract aqui
+            uniswapRouter.swapExactTokensForETH(
+                tokenBalance,
+                0,  // TODO. Protect against flashloans (only call from an account, not an smartcontract)
+                path,
+                address(this),
+                block.timestamp
+            );
+        }
     }
 
     function _setupFarm() internal {
@@ -148,12 +149,9 @@ contract BlizztICO {
     * Returns the uniswap token leftovers.
     */  
     function _createUniswapPair() internal returns (uint256, uint256) {
-        uint256 usdtBalance = IERC20(usdtToken).balanceOf(address(this));
-        if (usdtBalance > 0) _convertUniswapToMATIC(usdtBalance, usdtToken);
-        uint256 wbtcBalance = IERC20(wbtcToken).balanceOf(address(this));
-        if (wbtcBalance > 0) _convertUniswapToMATIC(wbtcBalance, wbtcToken);
-        uint256 ethBalance = IERC20(ethToken).balanceOf(address(this));
-        if (ethBalance > 0) _convertUniswapToMATIC(ethBalance, ethToken);
+        _convertUniswapToMATIC(usdtToken);
+        _convertUniswapToMATIC(wbtcToken);
+        //_convertUniswapToMATIC(ethToken);
         
         uint256 maticOnUniswap = address(this).balance / 3;
         uint256 maticUSD = _getUSDMATICPrice();
