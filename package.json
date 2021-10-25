@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@chainlink/contracts": "^0.2.2",
-    "@openzeppelin/contracts": "^4.2.0",
+    "@openzeppelin/contracts": ">=4.3.2",
     "@truffle/hdwallet-provider": "^1.4.1"
   }
 }
