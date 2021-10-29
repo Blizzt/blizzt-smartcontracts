@@ -1,6 +1,7 @@
 const BlizztToken = artifacts.require("./BlizztToken.sol");
 const BlizztICO = artifacts.require("./BlizztICO.sol");
 const BlizztFarm = artifacts.require("./BlizztFarm.sol");
+const LiquidityPoolLocker = artifacts.require("./LiquidityPoolLocker.sol");
 
 async function doDeploy(deployer, network, accounts) {
 
@@ -12,10 +13,14 @@ async function doDeploy(deployer, network, accounts) {
     let blizztFarm = await BlizztFarm.deployed();
     console.log('BlizztFarm deployed:', blizztFarm.address);
 
+    await deployer.deploy(LiquidityPoolLocker);
+    let lpLocker = await LiquidityPoolLocker.deployed();
+    console.log('LiquidityPoolLocker deployed:', lpLocker.address);
+
     let icoStartDate = 1634725518;
     let icoEndDate = 1734725518;
     let maxICOTokens = web3.utils.toWei('150000000');
-    let priceICO = 150000;   // Tokens per 1$
+    let priceICO = 50000000;   // Tokens per 1$
     let uniswapRouter = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D';
   
     // Deploy the Blizzt ICO
@@ -23,6 +28,7 @@ async function doDeploy(deployer, network, accounts) {
         accounts[0],
         blizztToken.address,
         blizztFarm.address,
+        lpLocker.address,
         icoStartDate,
         icoEndDate,
         maxICOTokens,

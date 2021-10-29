@@ -1,16 +1,19 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.7;
+pragma solidity 0.8.9;
 
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import "../interfaces/IERC20.sol";
 import "../interfaces/IBlizztFarm.sol";
 import "../interfaces/IUniswapV2Router02.sol";
+import "../interfaces/IUniswapV2Factory.sol";
+import "../interfaces/ILiquidityPoolLocker.sol";
 
 contract BlizztICO {
 
     address immutable private blizztWallet;                     // Blizzt master wallet
     address immutable private blizztToken;                      // Blizzt token address
     address immutable private blizztFarm;                       // Blizzt ICO farm
+    address immutable private liquidityPoolLocker;              // Uniswap LP locker
     uint256 immutable private maxICOTokens;                     // Max ICO tokens to sell
     uint256 immutable private icoStartDate;                     // ICO start date
     uint256 immutable private icoEndDate;                       // ICO end date
@@ -27,22 +30,24 @@ contract BlizztICO {
     event onTokensBought(address _buyer, uint256 _tokens, uint256 _paymentAmount);
     event onWithdrawICOFunds(uint256 _maticbalance);
     event onICOFinished(uint256 _date);
-    event onTokenListed(uint256 _ethOnUniswap, uint256 _tokensOnUniswap, uint256 _date);
+    event onTokenListed(uint256 _ethOnUniswap, uint256 _tokensOnUniswap, address _lpToken, uint256 _date);
 
     /**
      * @notice Constructor
      * @param _wallet               --> Blizzt master wallet
      * @param _token                --> Blizzt token address
+     * @param _liquidityPoolLocker  --> Uniswap LP locker
      * @param _icoStartDate         --> ICO start date
      * @param _icoEndDate           --> ICO end date
      * @param _maxICOTokens         --> Number of tokens selling in this ICO
      * @param _tokensPerDollar      --> 
      * @param _uniswapRouter        -->
      */
-    constructor(address _wallet, address _token, address _farm, uint256 _icoStartDate, uint256 _icoEndDate, uint256 _maxICOTokens, uint256 _tokensPerDollar, address _uniswapRouter) {
+    constructor(address _wallet, address _token, address _farm, address _liquidityPoolLocker, uint256 _icoStartDate, uint256 _icoEndDate, uint256 _maxICOTokens, uint256 _tokensPerDollar, address _uniswapRouter) {
         blizztWallet = _wallet;
         blizztToken = _token;
         blizztFarm = _farm;
+        liquidityPoolLocker = _liquidityPoolLocker;
         icoStartDate = _icoStartDate;
         icoEndDate = _icoEndDate;
         maxICOTokens = _maxICOTokens;
@@ -69,15 +74,17 @@ contract BlizztICO {
         require(tokenListingDate == 0, "the bonus offering and uniswap paring can only be done once per ISO");
         //require(block.timestamp > icoFinishedDate + 30 days, "30 days until listing");    // TODO. Removed for testing
 
-        (uint256 ethOnUniswap, uint256 tokensOnUniswap) = _createUniswapPair(); 
+        (uint256 ethOnUniswap, uint256 tokensOnUniswap, address lpToken) = _createUniswapPair(); 
         
         tokenListingDate = block.timestamp;
+       
+        _setupFarm();
 
         payable(blizztWallet).transfer(address(this).balance);
-        
-        _setupFarm();
-        
-        emit onTokenListed(ethOnUniswap, tokensOnUniswap, block.timestamp);
+        uint256 balance = IERC20(blizztToken).balanceOf(blizztWallet);
+        IERC20(blizztToken).transfer(blizztWallet, balance);
+
+        emit onTokenListed(ethOnUniswap, tokensOnUniswap, lpToken, block.timestamp);
     }
 
     /**
@@ -164,22 +171,27 @@ contract BlizztICO {
     * @dev This function creates a uniswap pair and handles liquidity provisioning.
     * Returns the uniswap token leftovers.
     */  
-    function _createUniswapPair() internal returns (uint256, uint256) {     
+    function _createUniswapPair() internal returns (uint256, uint256, address) {     
         uint256 maticOnUniswap = address(this).balance / 3;
         uint256 tokensOnUniswap = icoTokensBought / 3;
 
         IERC20(blizztToken).approve(address(uniswapRouter), tokensOnUniswap);
-      
+
+        IUniswapV2Factory factory = IUniswapV2Factory(uniswapRouter.factory());
+        address lpToken = factory.createPair(blizztToken, uniswapRouter.WETH());
+
         uniswapRouter.addLiquidityETH{value: maticOnUniswap}(
             blizztToken,
             tokensOnUniswap,
             0,
             0,
-            blizztWallet,
+            liquidityPoolLocker,
             block.timestamp
         );
 
-        return (maticOnUniswap, tokensOnUniswap);
+        ILiquidityPoolLocker(liquidityPoolLocker).lockLP(msg.sender, lpToken);
+
+        return (maticOnUniswap, tokensOnUniswap, lpToken);
     }
 
     function _setupFarm() internal {

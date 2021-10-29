@@ -14,62 +14,40 @@ async function doDeploy(deployer, network, accounts) {
     console.log('BlizztICO deployed:', blizztICO.address);
    
     try {
-        await blizztICO.buy({from: accounts[1], value: web3.utils.toWei('80')});
+        const balanceUser1Before = await web3.eth.getBalance(accounts[0]);
+        console.log('USER 1 BALANCE BEFORE TRANSFER: ', web3.utils.fromWei(balanceUser1Before.toString(), 'ether'));
+        await blizztICO.buy({from: accounts[0], value: web3.utils.toWei('2')});
         console.log('TRANSFER 1 FINISHED');
-        await blizztICO.buy({from: accounts[2], value: web3.utils.toWei('80')});
+        const balanceUser1After = await web3.eth.getBalance(accounts[0]);
+        console.log('USER 1 BALANCE AFTER TRANSFER: ', web3.utils.fromWei(balanceUser1After.toString(), 'ether'));
+        const balanceUser2Before = await web3.eth.getBalance(accounts[1]);
+        console.log('USER 2 BALANCE BEFORE TRANSFER: ', web3.utils.fromWei(balanceUser2Before.toString(), 'ether'));
+        await blizztICO.buy({from: accounts[1], value: web3.utils.toWei('1')});
         console.log('TRANSFER 2 FINISHED');
-        await blizztICO.buy({from: accounts[3], value: web3.utils.toWei('80')});
+        await blizztICO.buy({from: accounts[2], value: web3.utils.toWei('1')});
         console.log('TRANSFER 3 FINISHED');
-        await blizztICO.buy({from: accounts[4], value: web3.utils.toWei('80')});
-        console.log('TRANSFER 4 FINISHED');
-        await blizztICO.buy({from: accounts[5], value: web3.utils.toWei('80')});
-        console.log('TRANSFER 5 FINISHED');
-        await blizztICO.buy({from: accounts[6], value: web3.utils.toWei('80')});
-        console.log('TRANSFER 6 FINISHED');
-        await blizztICO.buy({from: accounts[7], value: web3.utils.toWei('80')});
-        console.log('TRANSFER 7 FINISHED');
-        await blizztICO.buy({from: accounts[8], value: web3.utils.toWei('80')});
-        console.log('TRANSFER 8 FINISHED');
-        await blizztICO.buy({from: accounts[9], value: web3.utils.toWei('80')});
-        console.log('TRANSFER 9 FINISHED');
-
     } catch(e) {
         console.log(e);
     }
 
-    const tokens1 = await blizztICO.getUserBoughtTokens(accounts[1]);
+    const tokens1 = await blizztICO.getUserBoughtTokens(accounts[0]);
     console.log('TOKENS BOUGHT1: ', web3.utils.fromWei(tokens1));
-    const tokens2 = await blizztICO.getUserBoughtTokens(accounts[2]);
+    const tokens2 = await blizztICO.getUserBoughtTokens(accounts[1]);
     console.log('TOKENS BOUGHT2: ', web3.utils.fromWei(tokens2));
-    const tokens3 = await blizztICO.getUserBoughtTokens(accounts[3]);
+    const tokens3 = await blizztICO.getUserBoughtTokens(accounts[2]);
     console.log('TOKENS BOUGHT3: ', web3.utils.fromWei(tokens3));
-    const tokens4 = await blizztICO.getUserBoughtTokens(accounts[4]);
-    console.log('TOKENS BOUGHT4: ', web3.utils.fromWei(tokens4));
-    const tokens5 = await blizztICO.getUserBoughtTokens(accounts[5]);
-    console.log('TOKENS BOUGHT5: ', web3.utils.fromWei(tokens5));
-    const tokens6 = await blizztICO.getUserBoughtTokens(accounts[6]);
-    console.log('TOKENS BOUGHT6: ', web3.utils.fromWei(tokens6));
-    const tokens7 = await blizztICO.getUserBoughtTokens(accounts[7]);
-    console.log('TOKENS BOUGHT7: ', web3.utils.fromWei(tokens7));
-    const tokens8 = await blizztICO.getUserBoughtTokens(accounts[8]);
-    console.log('TOKENS BOUGHT8: ', web3.utils.fromWei(tokens8));
-    const tokens9 = await blizztICO.getUserBoughtTokens(accounts[9]);
-    console.log('TOKENS BOUGHT9: ', web3.utils.fromWei(tokens9));
 
-
-    // TODO. How to automatize this action?
-    await blizztToken.transfer(blizztFarm.address, web3.utils.toWei('20000000'));
     const farmBalance = await blizztToken.balanceOf(blizztFarm.address);
     console.log('FARM BALANCE: ', web3.utils.fromWei(farmBalance));
 
-    const x = await blizztICO.listTokenInUniswapAndStake();
+    await blizztICO.listTokenInUniswapAndStake();
     console.log('TOKEN LISTED IN UNISWAP');
 
-    const deposited1 = await blizztFarm.deposited(accounts[1]);
+    const deposited1 = await blizztFarm.deposited(accounts[0]);
     console.log('DEPOSITED 1: ', web3.utils.fromWei(deposited1));
-    const deposited2 = await blizztFarm.deposited(accounts[2]);
+    const deposited2 = await blizztFarm.deposited(accounts[1]);
     console.log('DEPOSITED 2: ', web3.utils.fromWei(deposited2));
-    const deposited3 = await blizztFarm.deposited(accounts[3]);
+    const deposited3 = await blizztFarm.deposited(accounts[2]);
     console.log('DEPOSITED 3: ', web3.utils.fromWei(deposited3));
 
 

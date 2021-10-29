@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.7;
+pragma solidity 0.8.9;
 
 interface IBlizztFarm {
     function initialSetup(uint256 _startBlock, uint256 _numBlocks) external;
